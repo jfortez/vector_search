@@ -1,0 +1,11 @@
+.venv
+__pycache__
+.env
+.env.*
+faiss-index.bin
+names.pkl
+client/node_modules/*
+.vscode
+node_modules
+client/node_modules
+logs
