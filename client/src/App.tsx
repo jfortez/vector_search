@@ -158,13 +158,7 @@ const Grid = <T extends List>({ dataSource }: GridProps<T>) => {
   return (
     <div className="w-full">
       <div className="flex items-center py-4">
-        <Input
-          placeholder="Filter..."
-          // value={(table.getColumn("nombre")?.getFilterValue() as string) ?? ""}
-          // onChange={(event) => table.getColumn("nombre")?.setFilterValue(event.target.value)}
-          onChange={onChange}
-          className="max-w-sm"
-        />
+        <Input placeholder="Filter..." onChange={onChange} className="max-w-sm" />
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="outline" className="ml-auto">

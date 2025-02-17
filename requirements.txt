@@ -7,3 +7,4 @@ sentence_transformers
 faiss-cpu
 pyodbc
 rapidfuzz
+pytest
