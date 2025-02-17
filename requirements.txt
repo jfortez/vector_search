@@ -1,0 +1,9 @@
+sqlalchemy
+pandas
+numpy
+fastapi
+python-dotenv
+sentence_transformers
+faiss-cpu
+pyodbc
+rapidfuzz

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useDeferredValue } from "react";
+
 import {
   ColumnDef,
   ColumnFiltersState,
@@ -14,7 +14,7 @@ import {
   getSortedRowModel,
   useReactTable,
 } from "@tanstack/react-table";
-import { ChevronDown, MoreHorizontal } from "lucide-react";
+import { ChevronDown, MoreHorizontal, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -36,9 +36,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import listService, { type List } from "./services/list-service";
-import { useSearchParams } from "react-router";
+import { toast } from "sonner";
+
+import debounce from "lodash/debounce";
+// import defer from "lodash/defer";
 
 const columns: ColumnDef<List>[] = [
   {
@@ -110,7 +113,12 @@ const Grid = <T extends List>({ dataSource }: GridProps<T>) => {
   const [columnFilters, setColumnFilters] = React.useState<ColumnFiltersState>([]);
   const [columnVisibility, setColumnVisibility] = React.useState<VisibilityState>({});
   const [rowSelection, setRowSelection] = React.useState({});
-  const [searchParams, setSearchParams] = useSearchParams();
+  const client = useQueryClient();
+  const defaultListValues = React.useRef<List[]>(null);
+  if (!defaultListValues.current) {
+    defaultListValues.current = dataSource;
+  }
+
   const table = useReactTable({
     data: dataSource,
     columns,
@@ -130,6 +138,23 @@ const Grid = <T extends List>({ dataSource }: GridProps<T>) => {
     },
   });
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const onChange = React.useCallback(
+    debounce(async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const value = event.target.value;
+
+      if (!value) client.setQueryData(["list"], defaultListValues.current);
+
+      try {
+        const result = await listService.searchList(value);
+        client.setQueryData(["list"], result);
+      } catch (error: unknown) {
+        const err = error as Error;
+        toast.error(err.name || "Error", { description: err.message, className: "bg-destructive" });
+      }
+    }, 300),
+    []
+  );
   return (
     <div className="w-full">
       <div className="flex items-center py-4">
@@ -137,8 +162,7 @@ const Grid = <T extends List>({ dataSource }: GridProps<T>) => {
           placeholder="Filter..."
           // value={(table.getColumn("nombre")?.getFilterValue() as string) ?? ""}
           // onChange={(event) => table.getColumn("nombre")?.setFilterValue(event.target.value)}
-          value={searchParams.get("search") || ""}
-          onChange={(event) => setSearchParams({ search: event.target.value })}
+          onChange={onChange}
           className="max-w-sm"
         />
         <DropdownMenu>
@@ -233,16 +257,21 @@ const Grid = <T extends List>({ dataSource }: GridProps<T>) => {
 };
 
 const App = () => {
-  const [searchParams] = useSearchParams();
-  const query = useDeferredValue(searchParams.get("search") || "");
-
-  const { data, error } = useQuery({
-    queryKey: ["list", query],
-    queryFn: () => listService.searchList(query),
+  const { data, error, isLoading } = useQuery({
+    queryKey: ["list"],
+    queryFn: () => listService.getList(),
   });
 
   if (error) {
     return <div>Error: {error.message}</div>;
+  }
+
+  if (isLoading) {
+    return (
+      <div className="min-h-dvh container mx-auto px-4 flex items-center justify-center">
+        <Loader2 className="animate-spin size-12 " />
+      </div>
+    );
   }
 
   return (
