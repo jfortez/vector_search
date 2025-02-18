@@ -271,83 +271,83 @@ class FaissIndexManager:
         return self.index.ntotal
 
 
-def print_line():
-    print("")
-    print("-" * 28)
-    print("")
+# def print_line():
+#     print("")
+#     print("-" * 28)
+#     print("")
 
 
-if __name__ == "__main__":
-    manager = FaissIndexManager()  # Por defecto, "all-MiniLM-L6-v2"
-    #  INITIAL QUERY
-    print("\n[MAIN] Datos iniciales:")
-    print(manager.data.head(10))
-    print_line()
-    # INITIAL SEARCH
-    query = "Juan Perez"
-    print(f"[MAIN] Búsqueda con consulta: {query}")
-    _, similarity_df = manager.search(query)
-    print("[MAIN] Resultados de búsqueda:")
-    print("")
-    print(similarity_df)
-    print("")
-    # DELETING ITEMS AND SEARCHING AGAIN
-    print_line()
-    ids_to_delete = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
-    print("[MAIN] Eliminando items con ID:", ids_to_delete)
-    print("[MAIN] Longitud inicial de datos:", len(manager.data))
-    manager.delete_data([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
-    print("[MAIN] Longitud final de datos:", len(manager.data))
-    _, similarity_df = manager.search(query)
-    print("[MAIN] Resultados de búsqueda después de eliminación:")
-    print("")
-    print(similarity_df)
-    print("")
-    print_line()
-    # INSERTING NEW DATA AND SEARCHING AGAIN
-    print("[MAIN] Total elementos en el índice FAISS:", manager.get_index_length())
+# if __name__ == "__main__":
+#     manager = FaissIndexManager()  # Por defecto, "all-MiniLM-L6-v2"
+#     #  INITIAL QUERY
+#     print("\n[MAIN] Datos iniciales:")
+#     print(manager.data.head(10))
+#     print_line()
+#     # INITIAL SEARCH
+#     query = "Juan Perez"
+#     print(f"[MAIN] Búsqueda con consulta: {query}")
+#     _, similarity_df = manager.search(query)
+#     print("[MAIN] Resultados de búsqueda:")
+#     print("")
+#     print(similarity_df)
+#     print("")
+#     # DELETING ITEMS AND SEARCHING AGAIN
+#     print_line()
+#     ids_to_delete = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]
+#     print("[MAIN] Eliminando items con ID:", ids_to_delete)
+#     print("[MAIN] Longitud inicial de datos:", len(manager.data))
+#     manager.delete_data([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+#     print("[MAIN] Longitud final de datos:", len(manager.data))
+#     _, similarity_df = manager.search(query)
+#     print("[MAIN] Resultados de búsqueda después de eliminación:")
+#     print("")
+#     print(similarity_df)
+#     print("")
+#     print_line()
+#     # INSERTING NEW DATA AND SEARCHING AGAIN
+#     print("[MAIN] Total elementos en el índice FAISS:", manager.get_index_length())
 
-    new_data = pd.DataFrame(
-        [{"id": 123456, "identificacion": "23232123", "nombre": "Guillermo Mendoza"}]
-    )
-    print("[MAIN] Insertando nuevos datos:")
-    print("")
-    print(new_data)
-    print("")
+#     new_data = pd.DataFrame(
+#         [{"id": 123456, "identificacion": "23232123", "nombre": "Guillermo Mendoza"}]
+#     )
+#     print("[MAIN] Insertando nuevos datos:")
+#     print("")
+#     print(new_data)
+#     print("")
 
-    manager.insert_data(new_data)
-    print("[MAIN] Nuevos datos insertados. Total registros:", len(manager.data))
+#     manager.insert_data(new_data)
+#     print("[MAIN] Nuevos datos insertados. Total registros:", len(manager.data))
 
-    query_new = new_data.iloc[0]["nombre"]
-    print(f"[MAIN] Búsqueda con consulta: {query_new}")
-    _, similarity_df = manager.search(query_new)
-    print("[MAIN] Resultados de búsqueda:")
-    print("")
-    print(similarity_df)
-    print("")
-    print("[MAIN] Total elementos en el índice FAISS:", manager.get_index_length())
-    print_line()
+#     query_new = new_data.iloc[0]["nombre"]
+#     print(f"[MAIN] Búsqueda con consulta: {query_new}")
+#     _, similarity_df = manager.search(query_new)
+#     print("[MAIN] Resultados de búsqueda:")
+#     print("")
+#     print(similarity_df)
+#     print("")
+#     print("[MAIN] Total elementos en el índice FAISS:", manager.get_index_length())
+#     print_line()
 
-    # UPDATING DATA AND SEARCHING AGAIN
-    target_update = {
-        "id": 11,
-        "identificacion": "123123123222",
-        "nombre": "Pedro Duarte",
-    }
-    print(
-        f"[MAIN] Actualizando datos para ID: {target_update['id']}, nombre: {target_update['nombre']}, identificacion: {target_update['identificacion']}"
-    )
-    manager.update_data(pd.DataFrame([target_update]))
-    print("[MAIN] Datos actualizados. Total registros:", len(manager.data))
+#     # UPDATING DATA AND SEARCHING AGAIN
+#     target_update = {
+#         "id": 11,
+#         "identificacion": "123123123222",
+#         "nombre": "Pedro Duarte",
+#     }
+#     print(
+#         f"[MAIN] Actualizando datos para ID: {target_update['id']}, nombre: {target_update['nombre']}, identificacion: {target_update['identificacion']}"
+#     )
+#     manager.update_data(pd.DataFrame([target_update]))
+#     print("[MAIN] Datos actualizados. Total registros:", len(manager.data))
 
-    query_updated = target_update["nombre"]
-    print(f"[MAIN] Búsqueda con consulta: {query_updated}")
-    _, similarity_df = manager.search(query_updated)
-    print("[MAIN] Resultados de búsqueda:")
-    print("")
-    print(similarity_df)
-    print("")
-    print("[MAIN] Total elementos en el índice FAISS:", manager.get_index_length())
+#     query_updated = target_update["nombre"]
+#     print(f"[MAIN] Búsqueda con consulta: {query_updated}")
+#     _, similarity_df = manager.search(query_updated)
+#     print("[MAIN] Resultados de búsqueda:")
+#     print("")
+#     print(similarity_df)
+#     print("")
+#     print("[MAIN] Total elementos en el índice FAISS:", manager.get_index_length())
 
-    # Ejemplo de debug
-    # manager.debug_last_embedding()
+#     # Ejemplo de debug
+#     # manager.debug_last_embedding()

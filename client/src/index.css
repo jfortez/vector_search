@@ -1,3 +1,4 @@
+@import url("https://cdn.syncfusion.com/ej2/27.1.48/material.css");
 @import "tailwindcss";
 
 @plugin "tailwindcss-animate";
