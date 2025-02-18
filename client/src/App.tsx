@@ -36,6 +36,9 @@ const editSettings: EditSettingsModel = {
   showDeleteConfirmDialog: true,
 };
 const pageSettings: PageSettingsModel = { pageSize: 20 };
+
+type ActionBeginArgs = EditEventArgs & SaveEventArgs & AddEventArgs & DeleteEventArgs;
+
 const App = () => {
   useLicense();
   const { data, error, isLoading } = useQuery({
@@ -64,24 +67,23 @@ const App = () => {
   );
 
   const actionBegin = useCallback(
-    async (e: EditEventArgs | SaveEventArgs | AddEventArgs | DeleteEventArgs) => {
+    async (e: ActionBeginArgs) => {
       const { requestType, data, action } = e;
-      console.log(e);
       try {
         let hasFetched = false;
         let result;
         if (requestType === "delete") {
-          result = await listService.deleteItem(data.map((item) => item.id));
-
+          const [id] = (data as unknown as List[]).map((item) => item.id);
+          result = await listService.deleteItem(id);
           hasFetched = true;
         }
         if (requestType === "save") {
           if (action === "edit") {
-            result = await listService.updateItem(data);
+            result = await listService.updateItem(data as unknown as List);
 
             hasFetched = true;
           } else if (action === "add") {
-            result = await listService.insertItem(data);
+            result = await listService.insertItem(data as unknown as List);
 
             hasFetched = true;
           }
