@@ -1,4 +1,5 @@
-from database import get_identificacion
+from database.connection import Database
+from database.dao.identificacion import IdentificacionDAO
 import time
 import numpy as np
 import faiss
@@ -6,8 +7,11 @@ import torch
 from transformers import AutoModel, AutoTokenizer
 from rapidfuzz import process
 import os
-os.environ['KMP_DUPLICATE_LIB_OK'] = 'TRUE'
 
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
+db = Database()
+dao = IdentificacionDAO(db)
 
 # Cargar el modelo de embeddings (puedes cambiarlo por otro de Hugging Face)
 modelo = "sentence-transformers/all-MiniLM-L6-v2"
@@ -18,8 +22,7 @@ modelo_embedding = AutoModel.from_pretrained(modelo)
 
 
 def get_embedding(texto):
-    tokens = tokenizer(texto, return_tensors="pt",
-                       padding=True, truncation=True)
+    tokens = tokenizer(texto, return_tensors="pt", padding=True, truncation=True)
     # with torch.no_grad():
     #     # Forzar el uso de CPU
     #     modelo_embedding.to('cpu')
@@ -27,9 +30,9 @@ def get_embedding(texto):
     #     embedding = modelo_embedding(**tokens).last_hidden_state.mean(dim=1).numpy()
     # return embedding
     with torch.no_grad():
-        embedding = modelo_embedding(
-            **tokens).last_hidden_state.mean(dim=1).numpy()
+        embedding = modelo_embedding(**tokens).last_hidden_state.mean(dim=1).numpy()
     return embedding
+
 
 # Crear y almacenar los embeddings en FAISS
 
@@ -41,6 +44,7 @@ def create_index(df):
     indice = faiss.IndexFlatL2(embeddings.shape[1])
     indice.add(embeddings)
     return indice, names
+
 
 # Buscar el nombre más similar con IA
 
@@ -57,8 +61,7 @@ def search_with_ai(nombre_buscar, indice, nombres):
 def search_name(nombre_buscar, df):
     names = df["nombre"].tolist()
     # Cambiado a extract para múltiples coincidencias
-    matches = process.extract(nombre_buscar, names,
-                              limit=None, score_cutoff=60)
+    matches = process.extract(nombre_buscar, names, limit=None, score_cutoff=60)
 
     if matches:
         # Retorna una lista de coincidencias (nombre, puntuación, índice)
@@ -75,8 +78,7 @@ def print_fuzzy_search(data, input):
         # Mostrar todas las coincidencias y el número de coincidencias
         nombres_encontrados = [match[0] for match in resultado]
         num_coincidencias = len(resultado)
-        print(
-            f"✅ Número de coincidencias: {num_coincidencias} | ⏱️ {search_time:.4f}s")
+        print(f"✅ Número de coincidencias: {num_coincidencias} | ⏱️ {search_time:.4f}s")
     else:
         print(f"❌ No se encontró coincidencia | ⏱️ {search_time:.4f}s")
 
@@ -94,7 +96,7 @@ def print_ai_search(data, input):
 
 
 if __name__ == "__main__":
-    data = get_identificacion()
+    data = dao.get_all()
     inputs = ["J Peres", "J. Peres", "J Perez", "I. Prez"]
     print("RESULT FROM TABLE Identificacion:")
     print(data)
@@ -121,5 +123,4 @@ if __name__ == "__main__":
     print("\n---------------------------")
     print(f"Total fuzzy search time: {total_fuzzy_time:.4f} seconds")
     print(f"Total AI search time: {total_ai_time:.4f} seconds")
-    print(
-        f"Time difference: {abs(total_fuzzy_time - total_ai_time):.4f} seconds")
+    print(f"Time difference: {abs(total_fuzzy_time - total_ai_time):.4f} seconds")

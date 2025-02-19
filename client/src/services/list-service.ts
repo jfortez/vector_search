@@ -13,12 +13,13 @@ type MutationResult = {
 const ROUTE = "identificaciones";
 const SERVICE_URL = `${API_URL}/${ROUTE}`;
 
+export type Modes = "fuzzy" | "faiss";
 class ListService {
   async getList(): Promise<List[]> {
     return (await fetch(SERVICE_URL)).json();
   }
-  async searchList(search?: string): Promise<List[]> {
-    return (await fetch(`${SERVICE_URL}?search=${search}`)).json();
+  async searchList(search?: string, mode: Modes = "faiss"): Promise<List[]> {
+    return (await fetch(`${SERVICE_URL}?search=${search}&mode=${mode}`)).json();
   }
   async insertItem(item: List): Promise<MutationResult> {
     const result = await fetch(SERVICE_URL, {

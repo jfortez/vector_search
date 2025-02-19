@@ -1,8 +1,7 @@
-import { useCallback, useRef } from "react";
-import { Loader2, PlusIcon } from "lucide-react";
+import { useCallback, useRef, useState } from "react";
+import { Loader2, PlusIcon, Settings2 } from "lucide-react";
 
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import listService, { List } from "@/services/list-service";
 import {
   ColumnDirective,
   ColumnsDirective,
@@ -21,12 +20,21 @@ import {
 } from "@syncfusion/ej2-react-grids";
 
 import { Input } from "@/components/ui/input";
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 import { toast } from "sonner";
 
 import debounce from "lodash/debounce";
 import { Button } from "./components/ui/button";
 import useLicense from "./useLicense";
+import listService, { type List, type Modes } from "@/services/list-service";
 
 const editSettings: EditSettingsModel = {
   allowAdding: true,
@@ -41,10 +49,12 @@ type ActionBeginArgs = EditEventArgs & SaveEventArgs & AddEventArgs & DeleteEven
 
 const App = () => {
   useLicense();
+  const [mode, setMode] = useState<Modes>("faiss");
   const { data, error, isLoading } = useQuery({
     queryKey: ["list"],
     queryFn: () => listService.getList(),
   });
+
   const defaultListValues = useRef<List[]>(null);
   const gridRef = useRef<GridComponent>(null);
   const client = useQueryClient();
@@ -56,14 +66,14 @@ const App = () => {
       if (!value) client.setQueryData(["list"], defaultListValues.current);
 
       try {
-        const result = await listService.searchList(value);
+        const result = await listService.searchList(value, mode);
         client.setQueryData(["list"], result);
       } catch (error: unknown) {
         const err = error as Error;
         toast.error(err.name || "Error", { description: err.message, className: "bg-destructive" });
       }
     }, 300),
-    []
+    [mode]
   );
 
   const actionBegin = useCallback(
@@ -125,9 +135,35 @@ const App = () => {
   return (
     <div className="min-h-dvh container mx-auto px-4 py-6 flex flex-col gap-2">
       <div className="flex items-center justify-between">
-        <Input placeholder="Filter..." onChange={onChange} className="max-w-sm" />
+        <div className="flex items-center gap-1 w-full">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" className="size-9">
+                <Settings2 className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent>
+              <DropdownMenuLabel>Search Mode</DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuCheckboxItem
+                checked={mode === "fuzzy"}
+                onCheckedChange={() => setMode("fuzzy")}
+              >
+                FAISS
+              </DropdownMenuCheckboxItem>
+
+              <DropdownMenuCheckboxItem
+                checked={mode === "faiss"}
+                onCheckedChange={() => setMode("faiss")}
+              >
+                Fuzzy
+              </DropdownMenuCheckboxItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+          <Input placeholder="Filter..." onChange={onChange} className="max-w-sm" />
+        </div>
         <Button
-          className="bg-green-700 text-white hover:bg-green-800 font-medium pointer"
+          className="bg-green-700 text-white hover:bg-green-800 font-medium"
           variant="secondary"
           onClick={onAddClick}
         >

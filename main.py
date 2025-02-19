@@ -1,5 +1,6 @@
 from fastapi import FastAPI
-from api import router
+from fastapi.responses import JSONResponse
+from api.main import router
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -14,3 +15,12 @@ app.add_middleware(
 )
 
 app.include_router(router, prefix="/api/v1")
+
+
+# Para el manejo de errores global
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    return JSONResponse(
+        status_code=500,
+        content={"detail": f"Error interno del servidor: {str(exc)}"},
+    )
