@@ -1,15 +1,12 @@
 import pandas as pd
 from rapidfuzz import process, fuzz
-from sentence_transformers import SentenceTransformer
 
 from util import normalize
 from database.connection import Database
 from database.dao.identificacion import IdentificacionDAO
-from models.identificacion import Identificacion, IdentificacionCreate
-from util import generate_unique_id
 
 
-class RapidfuzzIndexManager:
+class FuzzyManager:
     """
     Clase para administrar un índice basado en RapidFuzz que permite
     insertar, eliminar, buscar y actualizar datos.
@@ -19,7 +16,7 @@ class RapidfuzzIndexManager:
         """
         Inicializa el modelo y carga datos iniciales desde la base de datos.
         """
-        self.model = SentenceTransformer(model_name)
+
         db = Database()
         self.db = IdentificacionDAO(db)
         self.data = self.db.get_all().copy()
@@ -35,10 +32,14 @@ class RapidfuzzIndexManager:
         texts = df.apply(
             lambda row: normalize(f"{row['nombre']} {row['identificacion']}"), axis=1
         ).tolist()
-        embeddings = {idx: text for idx, text in zip(df["id"], texts)}
-        return embeddings
+        return {id: text for id, text in zip(df["id"], texts)}
 
-    def search(self, query: str, threshold: float = 75, k: int = 10):
+    def search(
+        self,
+        query: str,
+        k: int = 10,
+        threshold: float = 10,
+    ):
         """
         Busca los k elementos más similares a la consulta 'query'.
         """
@@ -49,71 +50,15 @@ class RapidfuzzIndexManager:
 
         result_data = [
             {
-                "id": idx,
-                "nombre": (
-                    self.data.loc[self.data["id"] == idx, "nombre"].values[0]
-                    if not self.data.loc[self.data["id"] == idx, "nombre"].empty
-                    else None
-                ),
-                "identificacion": (
-                    self.data.loc[self.data["id"] == idx, "identificacion"].values[0]
-                    if not self.data.loc[self.data["id"] == idx, "identificacion"].empty
-                    else None
-                ),
-                "similaridad": f"{score}%",
+                "id": id,
+                "identificacion": self.data.loc[
+                    self.data["id"] == id, "identificacion"
+                ].values[0],
+                "nombre": self.data.loc[self.data["id"] == id, "nombre"].values[0],
+                "score": f"{score:.2f}%",
             }
-            for idx, text, score in results
+            for _, score, id in results
             if score >= threshold
         ]
 
         return pd.DataFrame(result_data)
-
-    def insert_data(self, new_row: IdentificacionCreate):
-        """
-        Inserta nuevos registros en el índice.
-        """
-        self.db.insert(new_row)
-
-        # self.embeddings.update(self._create_embeddings(new_data))
-        # print(f"[INSERT] Insertados {len(new_data)} registros. Total: {len(self.data)}")
-
-    def delete_data(self, id: int):
-        """
-        Elimina registros del índice.
-        """
-        self.db.delete(id)
-        self.embeddings.pop(id, None)
-        print(f"[DELETE] Eliminados {id} registros. Total: {len(self.data)}")
-
-    def update_data(self, row: Identificacion):
-        """
-        Actualiza registros en la base de datos.
-        """
-        self.db.update(row)
-        # self.embeddings[row.id] = normalize(f"{row.nombre} {row.identificacion}")
-        # print(f"[UPDATE] Registros actualizados: {len(updated_data)}")
-
-
-# Ejemplo de uso
-if __name__ == "__main__":
-    manager = RapidfuzzIndexManager()
-
-    # Buscar un término
-    query = "Juan frnandez"
-    print("Resultados de búsqueda:")
-    print(manager.search(query))
-
-    # Insertar nuevos datos
-
-    manager.insert_data(
-        IdentificacionCreate(identificacion=generate_unique_id(), nombre="Ana Gómez")
-    )
-
-    # Actualizar datos
-
-    manager.update_data(
-        Identificacion(id=101, identificacion="123456789", nombre="Ana González")
-    )
-
-    # Eliminar datos
-    manager.delete_data(manager.data["id"].tolist()[0])
