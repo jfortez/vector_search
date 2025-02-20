@@ -146,15 +146,15 @@ const App = () => {
               <DropdownMenuLabel>Search Mode</DropdownMenuLabel>
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem
-                checked={mode === "fuzzy"}
-                onCheckedChange={() => setMode("fuzzy")}
+                checked={mode === "faiss"}
+                onCheckedChange={() => setMode("faiss")}
               >
                 FAISS
               </DropdownMenuCheckboxItem>
 
               <DropdownMenuCheckboxItem
-                checked={mode === "faiss"}
-                onCheckedChange={() => setMode("faiss")}
+                checked={mode === "fuzzy"}
+                onCheckedChange={() => setMode("fuzzy")}
               >
                 Fuzzy
               </DropdownMenuCheckboxItem>

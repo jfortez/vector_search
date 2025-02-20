@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Query, Depends
 from search.faiss_search import FaissIndexManager
-from search.fuzzy_search import RapidfuzzIndexManager
+from search.fuzzy_search import FuzzyManager
 from models.identificacion import Identificacion, IdentificacionCreate
 from typing import Optional, List
 from enum import Enum
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/identificaciones", tags=["identificaciones"])
 # Modelo Pydantic para los registros
 
 faiss_manager = FaissIndexManager()
-fuzz_manager = RapidfuzzIndexManager()
+fuzz_manager = FuzzyManager()
 
 
 class SearchMode(str, Enum):
@@ -32,11 +32,14 @@ def get_identificaciones(
 ):
     try:
         if search:
-            r, _ = faiss_manager.search(search)
-            results = r
+            if mode == SearchMode.FAISS:
+                r, _ = faiss_manager.search(search)
+                results = r
+            else:
+                results = fuzz_manager.search(search, threshold=70)
+
         else:
             results = faiss_manager.db.get_all()
-
         return results.to_dict(orient="records")
     except Exception as e:
         raise BadRequestException(f"Error en la búsqueda: {str(e)}")
