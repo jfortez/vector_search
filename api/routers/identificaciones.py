@@ -24,6 +24,7 @@ class SearchMode(str, Enum):
     "/",
     response_model=List[Identificacion],
     summary="Consulta de Identificaciones",
+    status_code=200,
     description="Consulta o Busqueda de Identificaciones",
 )
 def get_identificaciones(
@@ -36,8 +37,8 @@ def get_identificaciones(
                 r, _ = faiss_manager.search(search)
                 results = r
             else:
-                results = fuzz_manager.search(search, threshold=70)
-
+                results = fuzz_manager.search(search)
+            print(results)
         else:
             results = faiss_manager.db.get_all()
         return results.to_dict(orient="records")
@@ -48,6 +49,7 @@ def get_identificaciones(
 @router.get(
     "/{id}",
     response_model=Identificacion,
+    status_code=200,
     summary="Obtener identificación",
     description="Obtiene una identificación por su ID",
 )
@@ -62,18 +64,19 @@ async def get_identificacion(id: int):
 
 @router.post(
     "/",
-    status_code=201,
+    status_code=200,
     summary="Crear identificación",
     description="Crea una nueva identificación",
 )
-def create_identificacion(item: IdentificacionCreate):
+def create_identificacion(new_row: IdentificacionCreate):
     # Insertar nuevos datos y sus embeddings
-    faiss_manager.insert_data(item.identificacion, item.nombre)
-    return {"message": "Registro insertado", "data": item.model_dump()}
+    faiss_manager.insert_data(new_row)
+    return {"message": "Registro insertado", "data": new_row.model_dump()}
 
 
 @router.put(
     "/{id}",
+    status_code=200,
     summary="Actualizar identificación",
     description="Actualiza una identificación existente",
 )
@@ -85,7 +88,7 @@ def update_identificacion(item: Identificacion):
 
 @router.delete(
     "/{id}",
-    status_code=204,
+    status_code=200,
     summary="Eliminar identificación",
     description="Elimina una identificación existente",
 )

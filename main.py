@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+
 from fastapi.responses import JSONResponse
 from api.main import router
 from fastapi.middleware.cors import CORSMiddleware

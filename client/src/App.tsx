@@ -45,7 +45,10 @@ const editSettings: EditSettingsModel = {
 };
 const pageSettings: PageSettingsModel = { pageSize: 20 };
 
-type ActionBeginArgs = EditEventArgs & SaveEventArgs & AddEventArgs & DeleteEventArgs;
+type ActionBeginArgs = Omit<
+  EditEventArgs & SaveEventArgs & AddEventArgs & DeleteEventArgs,
+  "data"
+> & { data: List };
 
 const App = () => {
   useLicense();
@@ -82,6 +85,7 @@ const App = () => {
       try {
         let hasFetched = false;
         let result;
+
         if (requestType === "delete") {
           const [id] = (data as unknown as List[]).map((item) => item.id);
           result = await listService.deleteItem(id);
@@ -89,24 +93,26 @@ const App = () => {
         }
         if (requestType === "save") {
           if (action === "edit") {
-            result = await listService.updateItem(data as unknown as List);
-
+            result = await listService.updateItem(data);
             hasFetched = true;
           } else if (action === "add") {
-            result = await listService.insertItem(data as unknown as List);
-
+            result = await listService.insertItem({
+              nombre: data.nombre,
+              identificacion: data.identificacion,
+            });
             hasFetched = true;
           }
         }
         if (hasFetched) {
           client.invalidateQueries({ queryKey: ["list"] });
-          if (result) {
-            toast.success("Success", { description: result.message });
-          }
+        }
+        if (result) {
+          toast.success("Success", { description: result.message });
         }
       } catch (error) {
         const err = error as Error;
         toast.error(err.name || "Error", { description: err.message });
+        client.invalidateQueries({ queryKey: ["list"] });
       }
     },
     [client]

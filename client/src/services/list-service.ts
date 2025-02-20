@@ -21,7 +21,7 @@ class ListService {
   async searchList(search?: string, mode: Modes = "faiss"): Promise<List[]> {
     return (await fetch(`${SERVICE_URL}?search=${search}&mode=${mode}`)).json();
   }
-  async insertItem(item: List): Promise<MutationResult> {
+  async insertItem(item: Omit<List, "id">): Promise<MutationResult> {
     const result = await fetch(SERVICE_URL, {
       method: "POST",
       headers: {
@@ -29,17 +29,23 @@ class ListService {
       },
       body: JSON.stringify(item),
     });
+    if (!result.ok) {
+      throw new Error(result.statusText);
+    }
     return result.json();
   }
 
   async updateItem(item: List): Promise<MutationResult> {
-    const result = await fetch(SERVICE_URL, {
+    const result = await fetch(`${SERVICE_URL}/${item.id}`, {
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
       },
       body: JSON.stringify(item),
     });
+    if (!result.ok) {
+      throw new Error(result.statusText);
+    }
     return result.json();
   }
 
@@ -47,6 +53,9 @@ class ListService {
     const result = await fetch(`${SERVICE_URL}/${id}`, {
       method: "DELETE",
     });
+    if (!result.ok) {
+      throw new Error(result.statusText);
+    }
     return result.json();
   }
 }

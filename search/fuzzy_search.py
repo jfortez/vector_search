@@ -1,5 +1,5 @@
 import pandas as pd
-from rapidfuzz import process, fuzz
+from rapidfuzz import process
 
 from util import normalize
 from database.connection import Database
@@ -38,14 +38,14 @@ class FuzzyManager:
         self,
         query: str,
         k: int = 10,
-        threshold: float = 10,
+        threshold: float = 60,
     ):
         """
         Busca los k elementos más similares a la consulta 'query'.
         """
         query_norm = normalize(query)
         results = process.extract(
-            query_norm, self.embeddings, scorer=fuzz.ratio, limit=k
+            query_norm, self.embeddings, score_cutoff=threshold, limit=k
         )
 
         result_data = [
@@ -58,7 +58,6 @@ class FuzzyManager:
                 "score": f"{score:.2f}%",
             }
             for _, score, id in results
-            if score >= threshold
         ]
 
         return pd.DataFrame(result_data)

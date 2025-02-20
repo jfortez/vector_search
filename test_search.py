@@ -6,7 +6,9 @@ import faiss
 import torch
 from transformers import AutoModel, AutoTokenizer
 from rapidfuzz import process
+import pandas as pd
 import os
+
 
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
@@ -76,9 +78,13 @@ def print_fuzzy_search(data, input):
 
     if resultado:
         # Mostrar todas las coincidencias y el número de coincidencias
-        nombres_encontrados = [match[0] for match in resultado]
+        # nombres_encontrados = [match[0] for match in resultado]
         num_coincidencias = len(resultado)
         print(f"✅ Número de coincidencias: {num_coincidencias} | ⏱️ {search_time:.4f}s")
+        df = pd.DataFrame(resultado, columns=["Nombre", "Puntaje", "Índice"])
+
+        print(df)
+
     else:
         print(f"❌ No se encontró coincidencia | ⏱️ {search_time:.4f}s")
 
@@ -97,30 +103,30 @@ def print_ai_search(data, input):
 
 if __name__ == "__main__":
     data = dao.get_all()
-    inputs = ["J Peres", "J. Peres", "J Perez", "I. Prez"]
+    inputs = ["maria jhonson", "J. Peres", "J Perez", "I. Prez"]
     print("RESULT FROM TABLE Identificacion:")
     print(data)
     print("---------------------------")
 
     # Measure fuzzy search time
     print("FUZZY SEARCH:")
-    fuzzy_start_time = time.time()
+    # fuzzy_start_time = time.time()
     for index, input in enumerate(inputs, start=1):
         print(f"Input #{index}: {input}")
         print_fuzzy_search(data, input)
-    total_fuzzy_time = time.time() - fuzzy_start_time
+    # total_fuzzy_time = time.time() - fuzzy_start_time
 
-    print("---------------------------")
+    # print("---------------------------")
 
-    # Measure AI search time
-    print("AI SEARCH:")
-    ai_start_time = time.time()
-    for index, input in enumerate(inputs, start=1):
-        print(f"Input #{index}: {input}")
-        print_ai_search(data, input)
-    total_ai_time = time.time() - ai_start_time
+    # # Measure AI search time
+    # print("AI SEARCH:")
+    # ai_start_time = time.time()
+    # for index, input in enumerate(inputs, start=1):
+    #     print(f"Input #{index}: {input}")
+    #     print_ai_search(data, input)
+    # total_ai_time = time.time() - ai_start_time
 
-    print("\n---------------------------")
-    print(f"Total fuzzy search time: {total_fuzzy_time:.4f} seconds")
-    print(f"Total AI search time: {total_ai_time:.4f} seconds")
-    print(f"Time difference: {abs(total_fuzzy_time - total_ai_time):.4f} seconds")
+    # print("\n---------------------------")
+    # print(f"Total fuzzy search time: {total_fuzzy_time:.4f} seconds")
+    # print(f"Total AI search time: {total_ai_time:.4f} seconds")
+    # print(f"Time difference: {abs(total_fuzzy_time - total_ai_time):.4f} seconds")
