@@ -1,12 +1,13 @@
 from pydantic import BaseModel
+from typing import Optional
 
 
 class BaseList(BaseModel):
     CredencialId: int
-    Identificacion: str | None
+    Identificacion: Optional[str]
     NombreCompleto: str
     FuenteId: int
-    CargaId: int
+    CargaId: Optional[int] = None
     FechaCarga: str
     Fuente: str
     Estado: str
