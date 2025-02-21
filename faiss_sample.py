@@ -189,7 +189,7 @@ if __name__ == "__main__":
     print(f"DATASET LENGTH: {len(data)}")
     print("-" * 28)
     for idx_type in index_types:
-        t = time.time()
+        t = time()
         print(f"\nTesting with {idx_type.upper()} index...")
         print("-" * 28)
 
@@ -218,7 +218,7 @@ if __name__ == "__main__":
             ]
         )
         print(results_df)
-        t = time.time() - t
+        t = time() - t
         print(f"Time: {t:.4f} seconds")
 
     # Save the index for later use

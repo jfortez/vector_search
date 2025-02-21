@@ -2,7 +2,6 @@ import pandas as pd
 from rapidfuzz import process
 
 from util import normalize
-from database.connection import Database
 from database.dao.identificacion import IdentificacionDAO
 
 
@@ -12,18 +11,15 @@ class FuzzyManager:
     insertar, eliminar, buscar y actualizar datos.
     """
 
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, dao: IdentificacionDAO, data):
         """
         Inicializa el modelo y carga datos iniciales desde la base de datos.
         """
 
-        db = Database()
-        self.db = IdentificacionDAO(db)
-        self.data = self.db.get_all().copy()
+        self.db = dao
+        self.data = data
         self.embeddings = self._create_embeddings(self.data)
-        print(
-            f"[INIT] Modelo: {model_name} | Datos cargados: {len(self.data)} registros."
-        )
+        print(f"[INIT]  Datos cargados: {len(self.data)} registros.")
 
     def _create_embeddings(self, df: pd.DataFrame) -> dict:
         """
@@ -33,6 +29,10 @@ class FuzzyManager:
             lambda row: normalize(f"{row['nombre']} {row['identificacion']}"), axis=1
         ).tolist()
         return {id: text for id, text in zip(df["id"], texts)}
+
+    def load_data(self, df: pd.DataFrame):
+
+        self.data = df.copy()
 
     def search(
         self,

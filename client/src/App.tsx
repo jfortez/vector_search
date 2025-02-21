@@ -34,7 +34,7 @@ import { toast } from "sonner";
 import debounce from "lodash/debounce";
 import { Button } from "./components/ui/button";
 import useLicense from "./useLicense";
-import listService, { type List, type Modes } from "@/services/list-service";
+import listService, { type List, type Modes, type SearchParams } from "@/services/list-service";
 
 const editSettings: EditSettingsModel = {
   allowAdding: true,
@@ -53,6 +53,8 @@ type ActionBeginArgs = Omit<
 const App = () => {
   useLicense();
   const [mode, setMode] = useState<Modes>("faiss");
+  const [inputValue, setInputValue] = useState<string>("");
+  const [threshold, setThreshold] = useState<number>(0.1);
   const { data, error, isLoading } = useQuery({
     queryKey: ["list"],
     queryFn: () => listService.getList(),
@@ -62,21 +64,41 @@ const App = () => {
   const gridRef = useRef<GridComponent>(null);
   const client = useQueryClient();
 
+  const handleSearch = useCallback(
+    async (params: SearchParams) => {
+      if (!params.search) return;
+      try {
+        const result = await listService.searchList({ ...params, mode });
+        client.setQueryData(["list"], result);
+      } catch (error) {
+        const err = error as Error;
+        toast.error(err.name || "Error", { description: err.message, className: "bg-destructive" });
+      }
+    },
+    [client, mode]
+  );
+
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const onChange = useCallback(
     debounce(async (event: React.ChangeEvent<HTMLInputElement>) => {
       const value = event.target.value;
       if (!value) client.setQueryData(["list"], defaultListValues.current);
 
-      try {
-        const result = await listService.searchList(value, mode);
-        client.setQueryData(["list"], result);
-      } catch (error: unknown) {
-        const err = error as Error;
-        toast.error(err.name || "Error", { description: err.message, className: "bg-destructive" });
-      }
+      setInputValue(value);
+      handleSearch({ search: value, threshold });
     }, 300),
-    [mode]
+    [threshold]
+  );
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const onChangeThreshold = useCallback(
+    debounce(async (event: React.ChangeEvent<HTMLInputElement>) => {
+      const threshold = Number(event.target.value);
+
+      setThreshold(threshold);
+      handleSearch({ threshold, search: inputValue });
+    }, 300),
+    [inputValue]
   );
 
   const actionBegin = useCallback(
@@ -138,6 +160,11 @@ const App = () => {
     defaultListValues.current = data;
   }
 
+  const handleModeChange = (mode: Modes) => {
+    setMode(mode);
+    handleSearch({ search: inputValue, mode, threshold });
+  };
+
   return (
     <div className="min-h-dvh container mx-auto px-4 py-6 flex flex-col gap-2">
       <div className="flex items-center justify-between">
@@ -153,21 +180,34 @@ const App = () => {
               <DropdownMenuSeparator />
               <DropdownMenuCheckboxItem
                 checked={mode === "faiss"}
-                onCheckedChange={() => setMode("faiss")}
+                onCheckedChange={() => handleModeChange("faiss")}
               >
                 FAISS
               </DropdownMenuCheckboxItem>
 
               <DropdownMenuCheckboxItem
                 checked={mode === "fuzzy"}
-                onCheckedChange={() => setMode("fuzzy")}
+                onCheckedChange={() => handleModeChange("fuzzy")}
               >
                 Fuzzy
               </DropdownMenuCheckboxItem>
             </DropdownMenuContent>
           </DropdownMenu>
-          <Input placeholder="Filter..." onChange={onChange} className="max-w-sm" />
+          <div className="flex items-center gap-4 w-full">
+            <Input placeholder="Filter..." onChange={onChange} className="max-w-sm" />
+            <Input
+              placeholder="Threshold"
+              onChange={onChangeThreshold}
+              className="w-[80px]"
+              min={0}
+              max={1}
+              step={0.1}
+              defaultValue={0.1}
+              type="number"
+            />
+          </div>
         </div>
+
         <Button
           className="bg-green-700 text-white hover:bg-green-800 font-medium"
           variant="secondary"

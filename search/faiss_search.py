@@ -4,7 +4,6 @@ import pandas as pd
 from sentence_transformers import SentenceTransformer
 
 from util import normalize
-from database.connection import Database
 from database.dao.identificacion import IdentificacionDAO
 from models.identificacion import Identificacion, IdentificacionCreate
 
@@ -15,23 +14,21 @@ class FaissIndexManager:
     insertar, eliminar, buscar y actualizar datos.
     """
 
-    def __init__(self, model_name: str = "all-MiniLM-L6-v2"):
+    def __init__(self, dao: IdentificacionDAO, data):
         """
         Inicializa el modelo y crea el índice FAISS. Carga datos iniciales
         desde la base de datos y construye los embeddings.
         """
         # Cargamos el modelo y obtenemos la dimensión directamente de él
-        self.model = SentenceTransformer(model_name)
+        self.model = SentenceTransformer("all-MiniLM-L6-v2")
         self.dimension = self.model.get_sentence_embedding_dimension()
 
         # Empleamos un IndexIDMap para poder manejar IDs de forma nativa en FAISS
         self.index = faiss.IndexIDMap(faiss.IndexFlatL2(self.dimension))
-        connection = Database()
-        self.db = IdentificacionDAO(connection)
-        # self.database = Database()
+        self.db = dao
 
         # Cargamos datos iniciales
-        self.data = self.db.get_all().copy()
+        self.data = data
 
         # Generamos embeddings iniciales
         embeddings = self._create_embeddings(self.data)
@@ -43,7 +40,7 @@ class FaissIndexManager:
         # Mantendremos en memoria una copia de los embeddings
         self.embeddings = embeddings
 
-        print(f"[INIT] Modelo: {model_name} | Dimensión: {self.dimension}")
+        print(f"[INIT] Dimensión: {self.dimension}")
         print(f"[INIT] Datos cargados: {len(self.data)} registros.")
         print(f"[INIT] Total elementos en el índice FAISS: {self.get_index_length()}")
 

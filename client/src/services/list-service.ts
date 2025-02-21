@@ -14,12 +14,30 @@ const ROUTE = "identificaciones";
 const SERVICE_URL = `${API_URL}/${ROUTE}`;
 
 export type Modes = "fuzzy" | "faiss";
+export type SearchParams = {
+  search?: string;
+  mode?: Modes;
+  threshold?: number;
+};
 class ListService {
   async getList(): Promise<List[]> {
-    return (await fetch(SERVICE_URL)).json();
+    const res = await fetch(SERVICE_URL);
+    if (!res.ok) {
+      throw new Error(res.statusText);
+    }
+    return await res.json();
   }
-  async searchList(search?: string, mode: Modes = "faiss"): Promise<List[]> {
-    return (await fetch(`${SERVICE_URL}?search=${search}&mode=${mode}`)).json();
+
+  async searchList({
+    search = "",
+    mode = "faiss",
+    threshold = 0.1,
+  }: SearchParams): Promise<List[]> {
+    const url = new URL(SERVICE_URL);
+    url.searchParams.set("search", search);
+    url.searchParams.set("mode", mode);
+    url.searchParams.set("threshold", threshold.toString());
+    return (await fetch(url.toString())).json();
   }
   async insertItem(item: Omit<List, "id">): Promise<MutationResult> {
     const result = await fetch(SERVICE_URL, {
