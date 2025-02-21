@@ -10,3 +10,5 @@ node_modules
 client/node_modules
 logs
 notebooks/sentences.txt
+lists.json
+embeddings
