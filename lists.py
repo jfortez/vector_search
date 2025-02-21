@@ -48,7 +48,7 @@ class DataStorage:
         loading_thread.start()
 
         try:
-            response = requests.get(self.url, timeout=30)
+            response = requests.get(self.url)
             response.raise_for_status()
             loading = False
             loading_thread.join()
