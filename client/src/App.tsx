@@ -127,6 +127,9 @@ const App = () => {
         }
         if (hasFetched) {
           client.invalidateQueries({ queryKey: ["list"] });
+          setInputValue("");
+          setMode("faiss");
+          setThreshold(0.1);
         }
         if (result) {
           toast.success("Success", { description: result.message });
