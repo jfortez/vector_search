@@ -126,10 +126,7 @@ class EmbeddingManager:
 
     def _create_and_save_embeddings(self) -> np.ndarray:
         """Crea embeddings a partir de las listas y los guarda."""
-        sentences = [
-            normalize(f"{element.NombreCompleto} {element.Fuente}")
-            for element in self.data
-        ]
+        sentences = [normalize(element["NombreCompleto"]) for element in self.data]
         print(
             f"✨ [EmbeddingManager] Generando embeddings para {len(sentences)} registros"
         )
@@ -154,9 +151,6 @@ class EmbeddingManager:
 
     def search(self, query: str, threshold: float = 0.1, k: int = 10) -> pd.DataFrame:
         """Busca los k elementos más similares a la consulta."""
-        print(
-            f"🔍 [EmbeddingManager] Buscando '{query}' con threshold={threshold}, k={k}"
-        )
         query_embedding = self.model.encode([normalize(query)]).astype("float32")
         distances, indices = self.index.search(query_embedding, k)
 
@@ -171,7 +165,6 @@ class EmbeddingManager:
                 row = self.data[idx]
                 results.append({**row, "Similarity": f"{similarity:.2%}"})
 
-        print(f"✅ [EmbeddingManager] Encontrados {len(results)} resultados relevantes")
         return pd.DataFrame(results)
 
 
