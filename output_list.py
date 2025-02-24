@@ -1,43 +1,46 @@
-from search.lists import EmbeddingManager
+from search.lists import EmbeddingManager, EmbeddingModelType
 from tqdm import tqdm
 import time
+from pathlib import Path
 
 
 def main():
     t = time.time()
-    path = "output/output_list.txt"
     inputs = [
-        "Burning Giraffe",
-        "Bi-colored Agate Box, Agate and Sapphire",
-        "Bead Necklace",
-        "On Autumn Wind",
-        "Stacy Gitlin",
-        "MR. NGO DUNG TOAN",
-        "BAYON WATER PUMP CO., LTD.",
-        "CONSTRUTORA OAS GUINEE S.A.",
-        "HEBEI CONSTRUCTION GROUP CORPORATION LIMITED GUANGXI BRANCH",
-        "SUPACHAI PRECHATERASAT",
-        "ADONIS CORREA",
-        "THIBAULT SABOURIN",
-        "FERDINAND NDIKURIYO",
-        "ABDEL RAHMAN JUMA",
-        "HAJI BASIR AND ZARJMIL COMPANY HAWALA",
-        "daniel noboa",
-        "aquiles alvarez",
-        "pablo escobar",
-        "nicolas maduro",
-        "cesar burbano",
+        # "Burning Giraffe",
+        # "Bi-colored Agate Box, Agate and Sapphire",
+        # "Bead Necklace",
+        # "On Autumn Wind",
+        # "Stacy Gitlin",
+        # "MR. NGO DUNG TOAN",
+        # "BAYON WATER PUMP CO., LTD.",
+        # "CONSTRUTORA OAS GUINEE S.A.",
+        # "HEBEI CONSTRUCTION GROUP CORPORATION LIMITED GUANGXI BRANCH",
+        # "SUPACHAI PRECHATERASAT",
+        # "ADONIS CORREA",
+        # "THIBAULT SABOURIN",
+        # "FERDINAND NDIKURIYO",
+        # "ABDEL RAHMAN JUMA",
+        # "HAJI BASIR AND ZARJMIL COMPANY HAWALA",
+        # "daniel noboa",
+        # "aquiles alvarez",
+        # "pablo escobar",
+        # "nicolas maduro",
+        # "cesar burbano",
+        "burbano paul",
         "paul burbano",
-        "burbano cesar",
-        "alvarez",
-        "antonio alvarez",
+        # "burbano cesar",
+        # "alvarez",
+        # "antonio alvarez",
         "burbano paul cristian",
-        "nicolas maduro moros",
-        "milei javier",
+        # "nicolas maduro moros",
+        # "milei javier",
     ]
 
+    model_type = EmbeddingModelType.PARAPHRASE
     # Crear una instancia de EmbeddingManager
-    embedding_manager = EmbeddingManager()
+    embedding_manager = EmbeddingManager(model_type=model_type)
+    path = Path("embeddings") / embedding_manager.model_name / "output.txt"
 
     # Definir parámetros de búsqueda por defecto
     threshold = 0.1
@@ -75,6 +78,7 @@ def main():
 
     # Escribir todo en el archivo
     with open(path, "w", encoding="utf-8") as f:
+        f.write(f"MODEL NAME: {model_type.value}\n\n")
         for i, block in enumerate(blocks):
             # Escribir el bloque
             for line in block:
