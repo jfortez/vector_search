@@ -12,3 +12,5 @@ logs
 notebooks/sentences.txt
 lists.json
 embeddings
+.pytest_cache
+output

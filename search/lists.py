@@ -124,25 +124,51 @@ class DataStorage:
 class EmbeddingManager:
     """Gestiona la creación, carga y búsqueda de embeddings."""
 
-    def __init__(self, embeddings_dir: Optional[str] = "embeddings"):
+    def __init__(self, embeddings_dir: str = "embeddings"):
         self.embeddings_dir = Path(embeddings_dir)
+        self.index_file = self.embeddings_dir / "faiss_index.bin"
+        self.embeddings_file = self.embeddings_dir / "embeddings.npy"
+
         print("🤖 [EmbeddingManager] Cargando modelo de embeddings...")
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
         self.dimension = self.model.get_sentence_embedding_dimension()
-        self.index = faiss.IndexFlatL2(self.dimension)
 
         self.data_storage = DataStorage()
         self.data = self.data_storage.storage
         print(
             f"🧠 [EmbeddingManager] Inicializando embeddings para {len(self.data)} registros..."
         )
+
+        # Inicializar índice FAISS
+        self.index = faiss.IndexFlatL2(self.dimension)
         self.embeddings = self._initialize_embeddings()
 
     def _initialize_embeddings(self) -> np.ndarray:
         """Inicializa embeddings cargándolos o creándolos."""
-        if self.embeddings_dir.exists() and any(self.embeddings_dir.glob("*.npy")):
-            return self._load_embeddings()
+        if self.index_file.exists() and self.embeddings_file.exists():
+            return self._load_embeddings_and_index()
         return self._create_and_save_embeddings()
+
+    def _load_npy_file(self, file_path: Path) -> np.ndarray:
+        """Función auxiliar para cargar un archivo .npy (usada en paralelo si necesario)."""
+        return np.load(file_path)
+
+    def _load_embeddings_and_index(self) -> np.ndarray:
+        """Carga embeddings e índice FAISS desde disco."""
+
+        print(
+            f"📂 [EmbeddingManager] Cargando embeddings desde {self.embeddings_file}..."
+        )
+        embeddings = np.load(self.embeddings_file).astype("float32")
+
+        print(f"📂 [EmbeddingManager] Cargando índice FAISS desde {self.index_file}...")
+        self.index = faiss.read_index(str(self.index_file))
+
+        print(
+            f"✅ [EmbeddingManager] Cargados {embeddings.shape[0]} embeddings y índice"
+        )
+
+        return embeddings
 
     def _create_and_save_embeddings(self) -> np.ndarray:
         """Crea embeddings a partir de las listas y los guarda."""
@@ -156,53 +182,20 @@ class EmbeddingManager:
         embeddings = self.model.encode(sentences, show_progress_bar=True).astype(
             "float32"
         )
+
         print("📈 [EmbeddingManager] Indexando embeddings en FAISS...")
         self.index.add(embeddings)
-        self._save_embeddings(embeddings)
-        return embeddings
 
-    def _save_embeddings(self, embeddings: np.ndarray) -> None:
-        """Guarda los embeddings en archivos .npy por lotes."""
-        self.embeddings_dir.mkdir(parents=True, exist_ok=True)
-        batch_size = 256
-        total_batches = (len(embeddings) + batch_size - 1) // batch_size
-
+        # Guardar embeddings y índice
         print(
-            f"💾 [EmbeddingManager] Guardando {len(embeddings)} embeddings en {total_batches} batches..."
+            f"💾 [EmbeddingManager] Guardando embeddings en {self.embeddings_file}..."
         )
-        for i in tqdm(
-            range(0, len(embeddings), batch_size),
-            desc="Guardando batches",
-            unit="batch",
-        ):
-            batch = embeddings[i : i + batch_size]
-            file_idx = f"{i // batch_size:03d}"
-            file_path = self.embeddings_dir / f"embeddings_{file_idx}.npy"
-            np.save(file_path, batch)
+        np.save(self.embeddings_file, embeddings)
 
-    def _load_embeddings(self) -> np.ndarray:
-        """Carga embeddings desde archivos .npy en orden numérico correcto."""
-        npy_files = sorted(
-            self.embeddings_dir.glob("embeddings_*.npy"),
-            key=lambda x: int(x.stem.split("_")[1]),
-        )
-        if not npy_files:
-            raise FileNotFoundError(
-                "❌ [EmbeddingManager] No se encontraron archivos de embeddings"
-            )
+        print(f"💾 [EmbeddingManager] Guardando índice en {self.index_file}...")
+        faiss.write_index(self.index, str(self.index_file))
 
-        print(
-            f"📂 [EmbeddingManager] Cargando {len(npy_files)} archivos de embeddings..."
-        )
-        embeddings_list = [
-            np.load(file)
-            for file in tqdm(npy_files, desc="Cargando batches", unit="file")
-        ]
-        embeddings = np.vstack(embeddings_list).astype("float32")
-        print(
-            f"📈 [EmbeddingManager] Indexando {embeddings.shape[0]} embeddings en FAISS..."
-        )
-        self.index.add(embeddings)
+        print("✅ [EmbeddingManager] Embeddings e índice guardados exitosamente")
         return embeddings
 
     def search(self, query: str, threshold: float = 0.1, k: int = 10) -> pd.DataFrame:
@@ -242,4 +235,5 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # main()
+    print("CALL MAIN")
