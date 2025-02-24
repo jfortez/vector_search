@@ -1,124 +1,93 @@
-import json
-import threading
 import time
 from pathlib import Path
-from typing import List, Optional
+from typing import List, Optional, Dict, Any
 
 import faiss
 import numpy as np
 import pandas as pd
 import requests
 from sentence_transformers import SentenceTransformer
-from tqdm import tqdm
 from models.list import BaseList
-
+import pickle
 from util import normalize
 
 
 class DataStorage:
-    """Maneja la persistencia de datos de Listas en disco."""
+    """Maneja la persistencia de datos de Listas en disco de forma optimizada."""
 
-    def __init__(self, file_path: Optional[str] = "lists.json"):
+    _cache = None  # Cache en memoria para datos crudos
+
+    def __init__(self, file_path: Optional[str] = "lists.pkl"):
         self.file_path = Path(file_path)
         self.url = "http://172.16.11.132:4000/api/getProcessedData"
-        print(f"📦 [DataStorage] Inicializando almacenamiento en {self.file_path}...")
-        self.storage: List[BaseList] = self._load_or_fetch_data()
-
-    def _fetch_from_api(self) -> List[BaseList]:
-        """Obtiene datos desde la API si no existen en disco."""
-        print(f"🌐 [DataStorage] Solicitando datos desde {self.url}...")
-
-        loading = True
         start_time = time.time()
+        self.storage: List[Dict[str, Any]] = self._load_or_fetch_data()
+        print(f"[DataStorage] Inicialización total: {time.time() - start_time:.2f}s")
 
-        def show_loading():
-            animation = "⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏"
-            idx = 0
-            while loading:
-                elapsed = time.time() - start_time
-                print(
-                    f"\r⏳ Esperando API {animation[idx % len(animation)]} ({elapsed:.1f}s)",
-                    end="",
-                )
-                idx += 1
-                time.sleep(0.1)
-            print("\r" + " " * 50 + "\r", end="")  # Limpia la línea
-
-        loading_thread = threading.Thread(target=show_loading)
-        loading_thread.start()
-
+    def _fetch_from_api(self) -> List[Dict[str, Any]]:
+        """Obtiene datos desde la API de forma rápida."""
+        start_time = time.time()
         try:
-            response = requests.get(self.url)
+            # Optimizamos la solicitud con conexión persistente y timeout
+            session = requests.Session()
+            response = session.get(self.url, timeout=5)
             response.raise_for_status()
-            loading = False
-            loading_thread.join()
-
-            elapsed_time = time.time() - start_time
-            print(f"✅ [DataStorage] Datos recibidos en {elapsed_time:.2f}s")
-
-            data = response.json()
-            print(f"📋 [DataStorage] Procesando {len(data)} registros desde API")
-            return [
-                BaseList(**item)
-                for item in tqdm(data, desc="Convirtiendo datos", unit="reg")
-            ]
+            data = response.json()  # Datos crudos como lista de dicts
+            print(
+                f"[DataStorage] Fetch API: {time.time() - start_time:.2f}s ({len(data)} registros)"
+            )
+            return data
         except requests.RequestException as e:
-            loading = False
-            loading_thread.join()
-            elapsed_time = time.time() - start_time
             raise RuntimeError(
-                f"❌ [DataStorage] Error tras {elapsed_time:.2f}s: {str(e)}"
+                f"[DataStorage] Error en API tras {time.time() - start_time:.2f}s: {str(e)}"
             )
 
-    def _load_or_fetch_data(self) -> List[BaseList]:
-        """Carga datos desde archivo o los obtiene de la API."""
+    def _load_or_fetch_data(self) -> List[Dict[str, Any]]:
+        """Carga datos desde archivo o API."""
+        start_time = time.time()
+
+        # Usar cache en memoria si existe
+        if DataStorage._cache is not None:
+            print(f"[DataStorage] Usando cache en memoria")
+            return DataStorage._cache
+
         if self.file_path.exists():
-            return self._load_from_file()
-        data = self._fetch_from_api()
-        self._save_to_file(data)
+            data = self._load_from_file()
+        else:
+            data = self._fetch_from_api()
+            self._save_to_file(data)
+
+        # Guardar en cache
+        DataStorage._cache = data
+        print(f"[DataStorage] _load_or_fetch_data: {time.time() - start_time:.2f}s")
         return data
 
-    def _save_to_file(self, source: List[BaseList]) -> None:
-        """Guarda las Listas en un archivo JSON."""
+    def _save_to_file(self, source: List[Dict[str, Any]]) -> None:
+        """Guarda los datos en disco usando pickle."""
+        start_time = time.time()
+        self.file_path.parent.mkdir(parents=True, exist_ok=True)
+        with self.file_path.open("wb") as f:
+            pickle.dump(source, f, protocol=pickle.HIGHEST_PROTOCOL)
         print(
-            f"💾 [DataStorage] Guardando {len(source)} registros en {self.file_path}..."
+            f"[DataStorage] Guardado: {time.time() - start_time:.2f}s ({len(source)} registros)"
         )
-        try:
-            data = [
-                element.model_dump()
-                for element in tqdm(source, desc="Serializando", unit="reg")
-            ]
 
-            self.file_path.parent.mkdir(parents=True, exist_ok=True)
-            json_str = json.dumps(data, indent=2, ensure_ascii=False)
-            total_size = len(json_str.encode("utf-8"))
+    def _load_from_file(self) -> List[Dict[str, Any]]:
+        """Carga los datos desde disco usando pickle."""
+        start_time = time.time()
+        with self.file_path.open("rb") as f:
+            data = pickle.load(f)
+        print(
+            f"[DataStorage] Carga desde disco: {time.time() - start_time:.2f}s ({len(data)} registros)"
+        )
+        return data
 
-            with self.file_path.open("w", encoding="utf-8") as f:
-                with tqdm(
-                    total=total_size, unit="B", unit_scale=True, desc="Escribiendo JSON"
-                ) as pbar:
-                    f.write(json_str)
-                    pbar.update(total_size)
-
-            print(f"✅ [DataStorage] Datos guardados exitosamente en {self.file_path}")
-        except IOError as e:
-            raise RuntimeError(f"❌ [DataStorage] Error al guardar: {str(e)}")
-
-    def _load_from_file(self) -> List[BaseList]:
-        """Carga las Listas desde un archivo JSON."""
-        print(f"📂 [DataStorage] Cargando datos desde {self.file_path}...")
-        try:
-            with self.file_path.open("r", encoding="utf-8") as f:
-                data = json.load(f)
-                print(
-                    f"📋 [DataStorage] Procesando {len(data)} registros desde archivo"
-                )
-                return [
-                    BaseList(**item)
-                    for item in tqdm(data, desc="Deserializando", unit="reg")
-                ]
-        except (IOError, json.JSONDecodeError) as e:
-            raise RuntimeError(f"❌ [DataStorage] Error al cargar: {str(e)}")
+    def get_lists(self) -> List[BaseList]:
+        """Convierte los datos crudos a BaseList bajo demanda."""
+        start_time = time.time()
+        result = [BaseList(**item) for item in self.storage]
+        print(f"[DataStorage] Conversión a BaseList: {time.time() - start_time:.2f}s")
+        return result
 
 
 class EmbeddingManager:

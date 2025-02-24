@@ -12,7 +12,7 @@ router = APIRouter(prefix="/list", tags=["list"])
 
 @router.get(
     "/",
-    response_model=List[BaseList],
+    # response_model=List[BaseList],
     status_code=200,
     summary="Consulta de Listas",
     description="Consulta o Busqueda de Listas",

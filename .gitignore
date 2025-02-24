@@ -14,3 +14,4 @@ lists.json
 embeddings
 .pytest_cache
 output
+lists.*
