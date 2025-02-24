@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 import requests
 from sentence_transformers import SentenceTransformer
-from models.list import BaseList
+from models.list import BaseList, ListItem
 import pickle
 from util import normalize
 
@@ -20,11 +20,9 @@ class DataStorage:
     def __init__(self, file_path: Optional[str] = "lists.pkl"):
         self.file_path = Path(file_path)
         self.url = "http://172.16.11.132:4000/api/getProcessedData"
-        start_time = time.time()
-        self.storage: List[Dict[str, Any]] = self._load_or_fetch_data()
-        print(f"[DataStorage] Inicialización total: {time.time() - start_time:.2f}s")
+        self.storage: List[ListItem] = self._load_or_fetch_data()
 
-    def _fetch_from_api(self) -> List[Dict[str, Any]]:
+    def _fetch_from_api(self) -> List[ListItem]:
         """Obtiene datos desde la API de forma rápida."""
         start_time = time.time()
         try:
@@ -42,9 +40,8 @@ class DataStorage:
                 f"[DataStorage] Error en API tras {time.time() - start_time:.2f}s: {str(e)}"
             )
 
-    def _load_or_fetch_data(self) -> List[Dict[str, Any]]:
+    def _load_or_fetch_data(self) -> List[ListItem]:
         """Carga datos desde archivo o API."""
-        start_time = time.time()
 
         # Usar cache en memoria si existe
         if DataStorage._cache is not None:
@@ -59,34 +56,23 @@ class DataStorage:
 
         # Guardar en cache
         DataStorage._cache = data
-        print(f"[DataStorage] _load_or_fetch_data: {time.time() - start_time:.2f}s")
         return data
 
-    def _save_to_file(self, source: List[Dict[str, Any]]) -> None:
+    def _save_to_file(self, source: List[ListItem]) -> None:
         """Guarda los datos en disco usando pickle."""
-        start_time = time.time()
         self.file_path.parent.mkdir(parents=True, exist_ok=True)
         with self.file_path.open("wb") as f:
             pickle.dump(source, f, protocol=pickle.HIGHEST_PROTOCOL)
-        print(
-            f"[DataStorage] Guardado: {time.time() - start_time:.2f}s ({len(source)} registros)"
-        )
 
-    def _load_from_file(self) -> List[Dict[str, Any]]:
+    def _load_from_file(self) -> List[ListItem]:
         """Carga los datos desde disco usando pickle."""
-        start_time = time.time()
         with self.file_path.open("rb") as f:
             data = pickle.load(f)
-        print(
-            f"[DataStorage] Carga desde disco: {time.time() - start_time:.2f}s ({len(data)} registros)"
-        )
         return data
 
     def get_lists(self) -> List[BaseList]:
         """Convierte los datos crudos a BaseList bajo demanda."""
-        start_time = time.time()
         result = [BaseList(**item) for item in self.storage]
-        print(f"[DataStorage] Conversión a BaseList: {time.time() - start_time:.2f}s")
         return result
 
 
@@ -98,7 +84,6 @@ class EmbeddingManager:
         self.index_file = self.embeddings_dir / "faiss_index.bin"
         self.embeddings_file = self.embeddings_dir / "embeddings.npy"
 
-        print("🤖 [EmbeddingManager] Cargando modelo de embeddings...")
         self.model = SentenceTransformer("all-MiniLM-L6-v2")
         self.dimension = self.model.get_sentence_embedding_dimension()
 
@@ -184,9 +169,7 @@ class EmbeddingManager:
             similarity = 1 - dist / max_distance
             if similarity >= threshold:
                 row = self.data[idx]
-                results.append(
-                    {"idx": idx, **row.model_dump(), "similarity": f"{similarity:.2%}"}
-                )
+                results.append({**row, "Similarity": f"{similarity:.2%}"})
 
         print(f"✅ [EmbeddingManager] Encontrados {len(results)} resultados relevantes")
         return pd.DataFrame(results)
@@ -204,5 +187,4 @@ def main():
 
 
 if __name__ == "__main__":
-    # main()
-    print("CALL MAIN")
+    main()

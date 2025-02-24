@@ -22,6 +22,18 @@ def main():
         "FERDINAND NDIKURIYO",
         "ABDEL RAHMAN JUMA",
         "HAJI BASIR AND ZARJMIL COMPANY HAWALA",
+        "daniel noboa",
+        "aquiles alvarez",
+        "pablo escobar",
+        "nicolas maduro",
+        "cesar burbano",
+        "paul burbano",
+        "burbano cesar",
+        "alvarez",
+        "antonio alvarez",
+        "burbano paul cristian",
+        "nicolas maduro moros",
+        "milei javier",
     ]
 
     # Crear una instancia de EmbeddingManager
@@ -29,7 +41,7 @@ def main():
 
     # Definir parámetros de búsqueda por defecto
     threshold = 0.1
-    k = 10
+    k = 20
 
     # Lista para almacenar los bloques de texto
     blocks = []
