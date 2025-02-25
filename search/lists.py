@@ -102,7 +102,7 @@ class EmbeddingManager:
         self.data_storage = DataStorage()
         self.data = self.data_storage.storage
         print(
-            f"🧠 [EmbeddingManager] Inicializando embeddings para {len(self.data)} registros con modelo {model_type.value}..."
+            f"🧠 [EmbeddingManager] Inicializando embeddings para {len(self.data)} registros con modelo {model_type.value} | dimension {self.dimension}..."
         )
 
         # Inicializar índice FAISS para la dimensionalidad del modelo
@@ -194,25 +194,3 @@ class EmbeddingManager:
                 results.append({**row, "Similarity": f"{similarity:.2%}"})
 
         return pd.DataFrame(results)
-
-
-def main():
-    """Función principal para demostrar el uso del EmbeddingManager con diferentes modelos."""
-    print("🚀 Iniciando demo de EmbeddingManager...")
-    # Test with each model type
-    for model_type in [
-        EmbeddingModelType.MINI_LM,
-        EmbeddingModelType.MULTI_QA,
-        EmbeddingModelType.PARAPHRASE,
-    ]:
-        print(f"\n🔍 Probando con modelo: {model_type.value}")
-        embedding_manager = EmbeddingManager(model_type=model_type)
-        query = "B A"
-        print(f"\n🔎 Realizando búsqueda para: '{query}'")
-        results = embedding_manager.search(query, threshold=0.5, k=10)
-        print("\n📊 Resultados de la búsqueda:")
-        print(results)
-
-
-if __name__ == "__main__":
-    main()
