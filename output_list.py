@@ -78,7 +78,9 @@ def main():
 
     # Escribir todo en el archivo
     with open(path, "w", encoding="utf-8") as f:
-        f.write(f"MODEL NAME: {model_type.value}\n\n")
+        f.write(
+            f"MODEL NAME: {model_type.value} | Shape: {embedding_manager.embeddings.shape}\n\n"
+        )
         for i, block in enumerate(blocks):
             # Escribir el bloque
             for line in block:
