@@ -20,6 +20,7 @@ DEFAULTS = {
     "k": 20,
     "format": "txt",
     "log": None,
+    "verbose": False,
 }
 
 
@@ -100,6 +101,12 @@ class CLIConfig:
             default=None,
             help="Archivo de configuración JSON (opcional, e.g., config.json).",
         )
+        parser.add_argument(
+            "--verbose",
+            action="store_true",
+            default=False,
+            help="Mostrar todos los mensajes de logging en la consola (opcional).",
+        )
 
         return parser
 
@@ -137,8 +144,15 @@ class CLIConfig:
         for key, value in DEFAULTS.items():
             setattr(args, key, getattr(args, key) or value)
 
-        # Validar y configurar logging de manera robusta
-        self._validate_and_setup_logging(args)
+        # Validar que la longitud de inputs no sea 0
+        inputs = load_inputs(args.inputs)
+        if not inputs:
+            self.parser.error(
+                "No se proporcionaron entradas válidas. Se requiere al menos una entrada."
+            )
+
+        # Configurar logging con base en --verbose y --log
+        self._setup_logging(args)
 
         self.args = args
         return args
@@ -149,9 +163,8 @@ class CLIConfig:
             with open(config_file, "r", encoding="utf-8") as f:
                 config = json.load(f)
                 for key in DEFAULTS:
-                    setattr(
-                        args, key, getattr(args, key) or config.get(key, DEFAULTS[key])
-                    )
+                    value = getattr(args, key) or config.get(key, DEFAULTS[key])
+                    setattr(args, key, value)
             logging.info(f"Cargando configuración desde {config_file}.")
         except Exception as e:
             logging.error(f"Error al cargar {config_file}: {e}")
@@ -171,9 +184,9 @@ class CLIConfig:
             args.inputs = [i for i in args.inputs if i] or DEFAULTS["inputs"]
         return args
 
-    def _validate_and_setup_logging(self, args):
-        """Valida y configura el logging de manera robusta."""
-        # Configurar logging con un logger específico para este script
+    def _setup_logging(self, args):
+        """Configura el logging de manera robusta con soporte para --verbose."""
+        # Configurar un logger específico para este script
         logger = logging.getLogger("search_script")
         logger.setLevel(logging.INFO)
 
@@ -181,6 +194,7 @@ class CLIConfig:
         if logger.hasHandlers():
             logger.handlers.clear()
 
+        # Configurar handler para archivo si se especifica --log
         if args.log:
             try:
                 # Crear directorio para el log si no existe
@@ -208,14 +222,13 @@ class CLIConfig:
                     "No se puede escribir en el archivo de log: %s. Usando solo consola.",
                     args.log,
                 )
-                args.log = None
             except Exception as e:
                 logger.error("Error al configurar logging para archivo: %s", str(e))
-                args.log = None
 
-        # Siempre añadir handler para consola
+        # Configurar handler para consola según --verbose
+        console_level = logging.DEBUG if args.verbose else logging.WARNING
         console_handler = logging.StreamHandler()
-        console_handler.setLevel(logging.INFO)
+        console_handler.setLevel(console_level)
         console_handler.setFormatter(
             logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
         )
@@ -466,15 +479,6 @@ def main():
     """Punto de entrada principal para ejecutar el script."""
     config = CLIConfig()
     args = config.parse_args()
-
-    # Validar que haya entradas si no se cargaron desde config.json
-    if not args.inputs and not (args.config or os.path.exists("config.json")):
-        logging.error("No se proporcionaron entradas válidas. Terminando ejecución.")
-        return
-
-    logging.info(
-        f"Entradas cargadas: {len(load_inputs(args.inputs or DEFAULTS['inputs']))} elementos únicos: {load_inputs(args.inputs or DEFAULTS['inputs'])}"
-    )
 
     processor = SearchProcessor(args)
     processor.process_search()

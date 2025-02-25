@@ -358,7 +358,7 @@ class EmbeddingManager:
         start_time = time.time()
         normalized_query = self._normalize_name(query)
         query_embedding = self.embedding_generator.model.encode(
-            [normalized_query]
+            [normalized_query], show_progress_bar=False
         ).astype("float32")
         distances, indices = self.faiss_manager.search(query_embedding, k)
 
