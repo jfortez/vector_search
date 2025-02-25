@@ -1,0 +1,7 @@
+{
+  "models": ["MINI_LM", "PARAPHRASE", "MULTI_QA"],
+  "indexes": ["FLAT_L2", "PQ", "IVFFLAT", "IVFPQ", "HNSWFLAT"],
+  "inputs": ["input.txt"],
+  "threshold": 0.1,
+  "k": 10
+}
