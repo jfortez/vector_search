@@ -142,8 +142,12 @@ class EmbeddingManager:
     def _create_and_save_embeddings(self) -> np.ndarray:
         """Crea embeddings a partir de las listas y los guarda para el modelo actual."""
         # Enhanced name normalization: handle permutations and variations
+
         sentences = [
-            self._normalize_name(element["NombreCompleto"]) for element in self.data
+            self._normalize_name(
+                f"{element["NombreCompleto"]} {element["Identificacion"] if element["Identificacion"] is not None else ""}"
+            )
+            for element in self.data
         ]
         print(
             f"✨ [EmbeddingManager] Generando embeddings para {len(sentences)} registros con modelo {self.model_name}"
