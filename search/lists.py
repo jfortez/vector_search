@@ -1208,58 +1208,25 @@ data = [
     },
 ]
 if __name__ == "__main__":
-
-    model = SentenceTransformer(EmbeddingModelType.PARAPHRASE.value)
-    d = model.get_sentence_embedding_dimension()
-    index = faiss.IndexHNSWFlat(d, 32)  # 32 vecinos por nodo
-    index.hnsw.efConstruction = 200  # Construcción rápida del gráfico
-    sentences = [
-        f"{normalize(item["NombreCompleto"])} {item["Identificacion"]}" for item in data
-    ]
-
-    embeddings = model.encode(sentences, show_progress_bar=True).astype("float32")
-    print(f"Embeddings para {len(sentences)} elementos")
-
-    query = "juan carlos"
-    query_embedding = model.encode([query], show_progress_bar=False).astype("float32")
-    index.add(embeddings)
-    distances, indices = index.search(query_embedding, 10)
-    d = distances[0]
-    i = indices[0]
-
-    max_d = max(d.max(), 1e-10)
-    results = []
-    for dist, idx in zip(d, i):
-        similarity = 1 - (dist / max_d) if max_d > 0 else 0
-        if idx == -1:
-            continue
-        result = sentences[idx]
-        results.append(
-            {"result": result, "similarity": similarity, "distance": f"{dist:.2f}"}
+    em = EmbeddingManager(
+        model_type=EmbeddingModelType.PARAPHRASE,
+        index_type=FaissIndexType.HNSWFLAT,
+    )
+    inputs = ["burbano paul cirstan"]
+    for input in inputs:
+        print(f"Searching for: {input}")
+        result1 = em.search(input, type=SearchType.COSINE)
+        result2 = em.search(input, type=SearchType.DEFAULT)
+        result3 = em.search(
+            input,
+            type=SearchType.CAMBERRA,
         )
-
-    df = pd.DataFrame(results)
-    print(f"query: {query}")
-    print(df)
-# em = EmbeddingManager(
-#     model_type=EmbeddingModelType.PARAPHRASE,
-#     index_type=FaissIndexType.HNSWFLAT,
-# )
-# inputs = ["burbano paul cirstan"]
-# for input in inputs:
-#     print(f"Searching for: {input}")
-#     result1 = em.search(input, type=SearchType.COSINE)
-#     result2 = em.search(input, type=SearchType.DEFAULT)
-#     result3 = em.search(
-#         input,
-#         type=SearchType.CAMBERRA,
-#     )
-#     print("Cosine Similarity")
-#     print(result1)
-#     print("")
-#     print("Default")
-#     print(result2)
-#     print("")
-#     print("Camberra")
-#     print(result3)
-#     print("-" * 50)
+        print("Cosine Similarity")
+        print(result1)
+        print("")
+        print("Default")
+        print(result2)
+        print("")
+        print("Camberra")
+        print(result3)
+        print("-" * 50)
