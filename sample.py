@@ -3,7 +3,7 @@ import pandas as pd
 import faiss
 from util import normalize
 from search.lists import EmbeddingModelType
-
+import numpy as np
 
 data = [
     {
@@ -811,37 +811,91 @@ data = [
 
 if __name__ == "__main__":
 
-    model = SentenceTransformer(EmbeddingModelType.PARAPHRASE.value)
-    d = model.get_sentence_embedding_dimension()
-    index = faiss.IndexHNSWFlat(d, 32)  # 32 vecinos por nodo
-    index.hnsw.efConstruction = 200  # Construcción rápida del gráfico
-    sentences = [
-        f"{normalize(item["NombreCompleto"])} {item["Identificacion"]}" for item in data
+    # Función para normalizar embeddings
+    def normalize_embedding(emb):
+        norm = np.linalg.norm(emb)
+        return emb / norm if norm > 0 else emb
+
+    # Configuración del modelo
+    model = SentenceTransformer("paraphrase-MiniLM-L6-v2")
+    d = model.get_sentence_embedding_dimension()  # 384 dimensiones
+
+    # Preparar datos para embeddings
+    name_sentences = [normalize(item["NombreCompleto"]) for item in data]
+    id_sentences = [
+        item["Identificacion"] if item["Identificacion"] else "" for item in data
     ]
 
-    embeddings = model.encode(sentences, show_progress_bar=True).astype("float32")
-    print(f"Embeddings para {len(sentences)} elementos")
-
-    query = "juan carlos"
-    query_embedding = model.encode([normalize(query)], show_progress_bar=False).astype(
+    # Generar embeddings
+    name_embeddings = model.encode(name_sentences, show_progress_bar=True).astype(
         "float32"
     )
-    index.add(embeddings)
-    distances, indices = index.search(query_embedding, 30)
-    d = distances[0]
-    i = indices[0]
+    id_embeddings = model.encode(id_sentences, show_progress_bar=True).astype("float32")
 
-    max_d = max(d.max(), 1e-10)
-    results = []
-    for dist, idx in zip(d, i):
-        similarity = 1 - (dist / max_d) if max_d > 0 else 0
-        if idx == -1:
-            continue
-        result = sentences[idx]
-        results.append(
-            {"result": result, "similarity": similarity, "distance": f"{dist:.2f}"}
-        )
+    # Normalizar embeddings
+    name_embeddings_normalized = np.array(
+        [normalize_embedding(emb) for emb in name_embeddings]
+    )
+    id_embeddings_normalized = np.array(
+        [normalize_embedding(emb) for emb in id_embeddings]
+    )
 
-    df = pd.DataFrame(results)
-    print(f"query: {query}")
-    print(df)
+    # Combinar embeddings en un solo vector
+    combined_embeddings = np.hstack(
+        [name_embeddings_normalized, id_embeddings_normalized]
+    )
+
+    # Crear índice FAISS con producto interno
+    index = faiss.IndexFlatIP(2 * d)
+    index.add(combined_embeddings)
+
+    # Función para preparar la consulta
+    def prepare_query_embedding(query):
+        if query.isdigit():  # Búsqueda por ID
+            query_id_embedding = model.encode([query], show_progress_bar=False).astype(
+                "float32"
+            )[0]
+            query_id_embedding_normalized = normalize_embedding(query_id_embedding)
+            return np.hstack(
+                [np.zeros(d, dtype="float32"), query_id_embedding_normalized]
+            )
+        else:  # Búsqueda por nombre o combinación
+            query_name = normalize(query)
+            query_name_embedding = model.encode(
+                [query_name], show_progress_bar=False
+            ).astype("float32")[0]
+            query_name_embedding_normalized = normalize_embedding(query_name_embedding)
+            return np.hstack(
+                [query_name_embedding_normalized, np.zeros(d, dtype="float32")]
+            )
+
+    # Función para buscar y mostrar resultados
+    def search(query, top_k=5):
+        query_embedding = prepare_query_embedding(query)
+        distances, indices = index.search(np.array([query_embedding]), top_k)
+        print(distances[0])
+        print(indices[0])
+        results = []
+        max_d = max(distances[0].max(), 1e-10)
+        for score, idx in zip(distances[0], indices[0]):
+            if idx == -1:
+                continue
+            result = f"{name_sentences[idx]} {id_sentences[idx]}"
+            similarity = 1 - (score / max_d) if max_d > 0 else 0
+            results.append(
+                {
+                    "result": result,
+                    "idx": idx,
+                    "score": score,
+                    "similarity": similarity,
+                    "distance": f"{distances[0][0]:.2f}",
+                }
+            )
+        return pd.DataFrame(results)
+
+    # Pruebas
+    test_queries = ["0201688686", "juan carlos", "torres 36300", "juan crlos"]
+    for query in test_queries:
+        df = search(query)
+        print(f"\nquery: {query}")
+        print(df)
