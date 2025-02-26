@@ -2,12 +2,16 @@ import argparse
 import logging
 import os
 from pathlib import Path
-from enum import Enum
 from tqdm import tqdm
 import time
 import json
 import pandas as pd
-from search.lists import EmbeddingManager, EmbeddingModelType, FaissIndexType
+from search.lists import (
+    EmbeddingManager,
+    EmbeddingModelType,
+    FaissIndexType,
+    SearchType,
+)
 
 
 # Diccionario de valores por defecto
@@ -393,7 +397,7 @@ class SearchProcessor:
         ):
             try:
                 results = embedding_manager.search(
-                    query, threshold=self.threshold, k=self.k
+                    query, threshold=self.threshold, k=self.k, type=SearchType.COSINE
                 )
                 block = self.formatter.generate_block(
                     query, results, self.threshold, self.k, self.format
