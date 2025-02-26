@@ -2,8 +2,10 @@ from sentence_transformers import SentenceTransformer
 import pandas as pd
 import faiss
 from util import normalize
-from search.lists import EmbeddingModelType
+
 import numpy as np
+import re
+
 
 data = [
     {
@@ -808,94 +810,139 @@ data = [
     },
 ]
 
+# Configuración del modelo
+model = SentenceTransformer("all-MiniLM-L12-v2")  # Modelo robusto
+d = model.get_sentence_embedding_dimension()  # 384 dimensiones
 
-if __name__ == "__main__":
 
-    # Función para normalizar embeddings
-    def normalize_embedding(emb):
-        norm = np.linalg.norm(emb)
-        return emb / norm if norm > 0 else emb
+# Función para normalizar embeddings
+def normalize_embedding(emb):
+    norm = np.linalg.norm(emb)
+    return emb / norm if norm > 0 else emb
 
-    # Configuración del modelo
-    model = SentenceTransformer("paraphrase-MiniLM-L6-v2")
-    d = model.get_sentence_embedding_dimension()  # 384 dimensiones
 
-    # Preparar datos para embeddings
-    name_sentences = [normalize(item["NombreCompleto"]) for item in data]
-    id_sentences = [
-        item["Identificacion"] if item["Identificacion"] else "" for item in data
-    ]
+# Preparar datos para embeddings (con normalización usando tu función)
+normalize_data = True  # Cambia a False si no quieres normalizar los datos
+name_sentences = [
+    normalize(item["NombreCompleto"]) if normalize_data else item["NombreCompleto"]
+    for item in data
+]
+id_sentences = [
+    item["Identificacion"] if item["Identificacion"] else "" for item in data
+]
 
-    # Generar embeddings
-    name_embeddings = model.encode(name_sentences, show_progress_bar=True).astype(
-        "float32"
-    )
-    id_embeddings = model.encode(id_sentences, show_progress_bar=True).astype("float32")
+# Generar embeddings
+name_embeddings = model.encode(name_sentences, show_progress_bar=True).astype("float32")
+id_embeddings = model.encode(id_sentences, show_progress_bar=True).astype("float32")
 
-    # Normalizar embeddings
-    name_embeddings_normalized = np.array(
-        [normalize_embedding(emb) for emb in name_embeddings]
-    )
-    id_embeddings_normalized = np.array(
-        [normalize_embedding(emb) for emb in id_embeddings]
-    )
+# Normalizar embeddings
+name_embeddings_normalized = np.array(
+    [normalize_embedding(emb) for emb in name_embeddings]
+)
+id_embeddings_normalized = np.array([normalize_embedding(emb) for emb in id_embeddings])
 
-    # Combinar embeddings en un solo vector
-    combined_embeddings = np.hstack(
-        [name_embeddings_normalized, id_embeddings_normalized]
-    )
 
-    # Crear índice FAISS con producto interno
-    index = faiss.IndexFlatIP(2 * d)
-    index.add(combined_embeddings)
+# Ponderación: más peso a la identificación
+weight_name = 0.7  # Ajustado para priorizar nombres
+weight_id = 1.3  # Ajustado para IDs
 
-    # Función para preparar la consulta
-    def prepare_query_embedding(query):
-        if query.isdigit():  # Búsqueda por ID
-            query_id_embedding = model.encode([query], show_progress_bar=False).astype(
-                "float32"
-            )[0]
-            query_id_embedding_normalized = normalize_embedding(query_id_embedding)
-            return np.hstack(
-                [np.zeros(d, dtype="float32"), query_id_embedding_normalized]
-            )
-        else:  # Búsqueda por nombre o combinación
-            query_name = normalize(query)
+# Combinar embeddings con ponderación
+combined_embeddings = np.hstack(
+    [name_embeddings_normalized * weight_name, id_embeddings_normalized * weight_id]
+)
+
+# Normalizar combined embeddings para obtener similitudes coseno
+combined_embeddings_normalized = np.array(
+    [normalize_embedding(emb) for emb in combined_embeddings]
+)
+
+# Crear índice FAISS con producto interno
+index = faiss.IndexFlatIP(2 * d)
+index.add(combined_embeddings_normalized)
+
+
+# Función para preparar la consulta mejorada
+def prepare_query_embedding(query, normalize_query=True):
+    if normalize_query:
+        query = normalize(query)  # Usamos tu función normalize de util
+
+    if query.isdigit():  # Búsqueda solo por ID
+        query_id_embedding = model.encode([query], show_progress_bar=False).astype(
+            "float32"
+        )[0]
+        query_id_embedding_normalized = normalize_embedding(query_id_embedding)
+        query_combined = np.hstack(
+            [np.zeros(d, dtype="float32"), query_id_embedding_normalized * weight_id]
+        )
+    else:
+        # Separar nombre y números en la consulta
+        id_part = "".join(re.findall(r"\d+", query))
+        name_part = re.sub(r"\d+", "", query).strip()
+
+        if id_part:  # Combinación de nombre e ID
+            # Si name_part está vacío, usamos la consulta completa como nombre
+            if not name_part:
+                name_part = query.replace(id_part, "").strip()
             query_name_embedding = model.encode(
-                [query_name], show_progress_bar=False
+                [name_part], show_progress_bar=False
+            ).astype("float32")[0]
+            query_id_embedding = model.encode(
+                [id_part], show_progress_bar=False
             ).astype("float32")[0]
             query_name_embedding_normalized = normalize_embedding(query_name_embedding)
-            return np.hstack(
-                [query_name_embedding_normalized, np.zeros(d, dtype="float32")]
+            query_id_embedding_normalized = normalize_embedding(query_id_embedding)
+            query_combined = np.hstack(
+                [
+                    query_name_embedding_normalized * weight_name,
+                    query_id_embedding_normalized * weight_id,
+                ]
+            )
+        else:  # Búsqueda solo por nombre
+            query_embedding = model.encode([query], show_progress_bar=False).astype(
+                "float32"
+            )[0]
+            query_embedding_normalized = normalize_embedding(query_embedding)
+            query_combined = np.hstack(
+                [query_embedding_normalized * weight_name, np.zeros(d, dtype="float32")]
             )
 
-    # Función para buscar y mostrar resultados
-    def search(query, top_k=5):
-        query_embedding = prepare_query_embedding(query)
-        distances, indices = index.search(np.array([query_embedding]), top_k)
-        print(distances[0])
-        print(indices[0])
-        results = []
-        max_d = max(distances[0].max(), 1e-10)
-        for score, idx in zip(distances[0], indices[0]):
-            if idx == -1:
-                continue
-            result = f"{name_sentences[idx]} {id_sentences[idx]}"
-            similarity = 1 - (score / max_d) if max_d > 0 else 0
+    # Normalizar el embedding combinado de la consulta
+    query_combined_normalized = normalize_embedding(query_combined)
+    return query_combined_normalized
+
+
+# Función para buscar y mostrar resultados
+def search(query, top_k=5, threshold=0.1, normalize=True):
+    query_embedding = prepare_query_embedding(query, normalize_query=normalize)
+    scores, indices = index.search(np.array([query_embedding]), top_k)
+    results = []
+    for score, idx in zip(scores[0], indices[0]):
+        if idx == -1:
+            continue
+        result = data[idx]  # Usamos el diccionario original para más detalles
+        cosine_similarity = score  # Ahora es similitud coseno
+        if cosine_similarity >= threshold:
             results.append(
                 {
-                    "result": result,
-                    "idx": idx,
-                    "score": score,
-                    "similarity": similarity,
-                    "distance": f"{distances[0][0]:.2f}",
+                    "NombreCompleto": result["NombreCompleto"],
+                    "Identificacion": result["Identificacion"],
+                    "cosine_similarity": f"{cosine_similarity:.4f}",
                 }
             )
-        return pd.DataFrame(results)
+    return pd.DataFrame(results)
 
-    # Pruebas
-    test_queries = ["0201688686", "juan carlos", "torres 36300", "juan crlos"]
+
+# Pruebas con las queries del usuario
+if __name__ == "__main__":
+    test_queries = [
+        "0201688686",
+        "carlos torres",
+        "pedro",
+        "8686",
+        "juan crlos",
+        "diego fernando andrade torre",
+    ]
     for query in test_queries:
-        df = search(query)
-        print(f"\nquery: {query}")
+        df = search(query, top_k=5, threshold=0.1, normalize=True)
+        print(f"\nQuery: {query}")
         print(df)
