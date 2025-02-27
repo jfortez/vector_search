@@ -1,8 +1,8 @@
 {
-  "models": ["MINI_LM", "MULTI_QA", "PARAPHRASE"],
-  "indexes": ["FLAT_L2", "PQ", "IVFFLAT", "IVFPQ", "HNSWFLAT"],
+  "models": ["MP_NET"],
+  "indexes": ["FLAT_IP"],
   "inputs": ["input.txt"],
   "threshold": 0.1,
-  "k": 5,
+  "k": 10,
   "verbose": true
 }
