@@ -808,21 +808,55 @@ data = [
         "CargaId": 101,
         "FechaCarga": "2022-08-31T15:11:15.263Z",
     },
+    {
+        "CredencialId": 10709,
+        "Identificacion": None,
+        "NombreCompleto": "EKATERINA â€œKATIEâ€ SHCHERBAKOVA - SEASIDE, CALIFORNIA",
+        "FuenteId": 4,
+        "CargaId": 101,
+        "FechaCarga": "2022-08-31T22:37:45.167Z",
+    },
+    {
+        "CredencialId": 10969,
+        "Identificacion": None,
+        "NombreCompleto": "JULIANNE â€œJULIEâ€ WILLIAMS",
+        "FuenteId": 4,
+        "CargaId": 101,
+        "FechaCarga": "2022-08-31T22:37:45.167Z",
+    },
+    {
+        "CredencialId": 10977,
+        "Identificacion": None,
+        "NombreCompleto": "KARLIE LAIN GUSÃ‰",
+        "FuenteId": 4,
+        "CargaId": 101,
+        "FechaCarga": "2022-08-31T22:37:45.167Z",
+    },
+    {
+        "CredencialId": 11014,
+        "Identificacion": None,
+        "NombreCompleto": "LAURA â€œLOLLIEâ€ WINANS",
+        "FuenteId": 4,
+        "CargaId": 101,
+        "FechaCarga": "2022-08-31T22:37:45.167Z",
+    },
+    {
+        "CredencialId": 11402,
+        "Identificacion": None,
+        "NombreCompleto": "WILLIAM â€œGUILLERMOâ€ MORALES",
+        "FuenteId": 4,
+        "CargaId": 101,
+        "FechaCarga": "2022-08-31T22:37:45.167Z",
+    },
 ]
 
+
 # Configuración del modelo
-model = SentenceTransformer("all-MiniLM-L12-v2")  # Modelo robusto
-d = model.get_sentence_embedding_dimension()  # 384 dimensiones
-
-
-# Función para normalizar embeddings
-def normalize_embedding(emb):
-    norm = np.linalg.norm(emb)
-    return emb / norm if norm > 0 else emb
-
+model = SentenceTransformer("multi-qa-mpnet-base-dot-v1")  # Modelo optimizado
+d = model.get_sentence_embedding_dimension()  # 768 dimensiones
 
 # Preparar datos para embeddings (con normalización usando tu función)
-normalize_data = True  # Cambia a False si no quieres normalizar los datos
+normalize_data = True
 name_sentences = [
     normalize(item["NombreCompleto"]) if normalize_data else item["NombreCompleto"]
     for item in data
@@ -835,101 +869,177 @@ id_sentences = [
 name_embeddings = model.encode(name_sentences, show_progress_bar=True).astype("float32")
 id_embeddings = model.encode(id_sentences, show_progress_bar=True).astype("float32")
 
-# Normalizar embeddings
-name_embeddings_normalized = np.array(
-    [normalize_embedding(emb) for emb in name_embeddings]
-)
-id_embeddings_normalized = np.array([normalize_embedding(emb) for emb in id_embeddings])
+# Normalizar embeddings con faiss.normalize_L2
+faiss.normalize_L2(name_embeddings)
+faiss.normalize_L2(id_embeddings)
+
+# Crear índices FAISS separados para nombres y IDs
+name_index = faiss.IndexFlatIP(d)
+name_index.add(name_embeddings)
+
+id_index = faiss.IndexFlatIP(d)
+id_index.add(id_embeddings)
 
 
-# Ponderación: más peso a la identificación
-weight_name = 0.7  # Ajustado para priorizar nombres
-weight_id = 1.3  # Ajustado para IDs
-
-# Combinar embeddings con ponderación
-combined_embeddings = np.hstack(
-    [name_embeddings_normalized * weight_name, id_embeddings_normalized * weight_id]
-)
-
-# Normalizar combined embeddings para obtener similitudes coseno
-combined_embeddings_normalized = np.array(
-    [normalize_embedding(emb) for emb in combined_embeddings]
-)
-
-# Crear índice FAISS con producto interno
-index = faiss.IndexFlatIP(2 * d)
-index.add(combined_embeddings_normalized)
-
-
-# Función para preparar la consulta mejorada
-def prepare_query_embedding(query, normalize_query=True):
-    if normalize_query:
-        query = normalize(query)  # Usamos tu función normalize de util
-
-    if query.isdigit():  # Búsqueda solo por ID
+# Función para buscar por nombre, ID o combinación
+def search(query, top_k=5, threshold=0.5):
+    if query.isdigit():  # Búsqueda por ID
+        # Búsqueda exacta por ID
         query_id_embedding = model.encode([query], show_progress_bar=False).astype(
             "float32"
-        )[0]
-        query_id_embedding_normalized = normalize_embedding(query_id_embedding)
-        query_combined = np.hstack(
-            [np.zeros(d, dtype="float32"), query_id_embedding_normalized * weight_id]
         )
-    else:
+        faiss.normalize_L2(query_id_embedding.reshape(1, -1))
+        scores, indices = id_index.search(query_id_embedding.reshape(1, -1), top_k)
+
+        # Búsqueda parcial por ID (últimos dígitos)
+        partial_id = query[-4:] if len(query) >= 4 else query
+        partial_id_embedding = model.encode(
+            [partial_id], show_progress_bar=False
+        ).astype("float32")
+        faiss.normalize_L2(partial_id_embedding.reshape(1, -1))
+        partial_scores, partial_indices = id_index.search(
+            partial_id_embedding.reshape(1, -1), top_k
+        )
+
+        # Combinar resultados, priorizando exactos
+        results = []
+        for score, idx in zip(scores[0], indices[0]):
+            if idx == -1:
+                continue
+            result = data[idx]
+            if score >= threshold:
+                results.append(
+                    {
+                        "NombreCompleto": result["NombreCompleto"],
+                        "Identificacion": result["Identificacion"],
+                        "cosine_similarity": f"{score:.4f}",
+                        "type": "exact",
+                        "index": idx,  # Añadimos el índice explícitamente
+                    }
+                )
+
+        # Añadir resultados parciales si no hay suficientes exactos
+        if len(results) < top_k:
+            for score, idx in zip(partial_scores[0], partial_indices[0]):
+                if idx == -1 or any(r["index"] == idx for r in results):
+                    continue
+                result = data[idx]
+                if score >= threshold - 0.2:  # Umbral más bajo para parciales
+                    results.append(
+                        {
+                            "NombreCompleto": result["NombreCompleto"],
+                            "Identificacion": result["Identificacion"],
+                            "cosine_similarity": f"{score:.4f}",
+                            "type": "partial",
+                            "index": idx,  # Añadimos el índice explícitamente
+                        }
+                    )
+                    if len(results) >= top_k:
+                        break
+
+        return pd.DataFrame(results[:top_k])
+
+    else:  # Búsqueda por nombre o combinación
         # Separar nombre y números en la consulta
         id_part = "".join(re.findall(r"\d+", query))
         name_part = re.sub(r"\d+", "", query).strip()
 
-        if id_part:  # Combinación de nombre e ID
-            # Si name_part está vacío, usamos la consulta completa como nombre
-            if not name_part:
-                name_part = query.replace(id_part, "").strip()
-            query_name_embedding = model.encode(
-                [name_part], show_progress_bar=False
-            ).astype("float32")[0]
+        if id_part:  # Búsqueda combinada
+            # Buscar por nombre
+            query_name = normalize(name_part) if name_part else ""
+            if query_name:
+                query_name_embedding = model.encode(
+                    [query_name], show_progress_bar=False
+                ).astype("float32")
+                faiss.normalize_L2(query_name_embedding.reshape(1, -1))
+                scores_name, indices_name = name_index.search(
+                    query_name_embedding.reshape(1, -1), top_k
+                )
+            else:
+                scores_name, indices_name = np.zeros((1, top_k)), np.full(
+                    (1, top_k), -1
+                )
+
+            # Buscar por ID
             query_id_embedding = model.encode(
                 [id_part], show_progress_bar=False
-            ).astype("float32")[0]
-            query_name_embedding_normalized = normalize_embedding(query_name_embedding)
-            query_id_embedding_normalized = normalize_embedding(query_id_embedding)
-            query_combined = np.hstack(
-                [
-                    query_name_embedding_normalized * weight_name,
-                    query_id_embedding_normalized * weight_id,
-                ]
+            ).astype("float32")
+            faiss.normalize_L2(query_id_embedding.reshape(1, -1))
+            scores_id, indices_id = id_index.search(
+                query_id_embedding.reshape(1, -1), top_k
             )
+
+            # Combinar resultados
+            name_results = {
+                idx: score
+                for score, idx in zip(scores_name[0], indices_name[0])
+                if idx != -1 and score >= threshold
+            }
+            id_results = {
+                idx: score
+                for score, idx in zip(scores_id[0], indices_id[0])
+                if idx != -1 and score >= threshold
+            }
+
+            # Encontrar intersección y combinar scores
+            combined_results = []
+            for idx in set(name_results.keys()) & set(id_results.keys()):
+                combined_score = (name_results[idx] + id_results[idx]) / 2
+                result = data[idx]
+                combined_results.append(
+                    {
+                        "NombreCompleto": result["NombreCompleto"],
+                        "Identificacion": result["Identificacion"],
+                        "cosine_similarity": f"{combined_score:.4f}",
+                        "type": "combined",
+                        "index": idx,  # Añadimos el índice explícitamente
+                    }
+                )
+
+            # Si no hay suficientes resultados combinados, añadir más de nombres
+            if len(combined_results) < top_k:
+                for idx, score in name_results.items():
+                    if idx not in [r["index"] for r in combined_results]:
+                        result = data[idx]
+                        combined_results.append(
+                            {
+                                "NombreCompleto": result["NombreCompleto"],
+                                "Identificacion": result["Identificacion"],
+                                "cosine_similarity": f"{score:.4f}",
+                                "type": "name",
+                                "index": idx,  # Añadimos el índice explícitamente
+                            }
+                        )
+                        if len(combined_results) >= top_k:
+                            break
+
+            return pd.DataFrame(combined_results[:top_k])
+
         else:  # Búsqueda solo por nombre
-            query_embedding = model.encode([query], show_progress_bar=False).astype(
-                "float32"
-            )[0]
-            query_embedding_normalized = normalize_embedding(query_embedding)
-            query_combined = np.hstack(
-                [query_embedding_normalized * weight_name, np.zeros(d, dtype="float32")]
+            query_name = normalize(query)
+            query_name_embedding = model.encode(
+                [query_name], show_progress_bar=False
+            ).astype("float32")
+            faiss.normalize_L2(query_name_embedding.reshape(1, -1))
+            scores, indices = name_index.search(
+                query_name_embedding.reshape(1, -1), top_k
             )
-
-    # Normalizar el embedding combinado de la consulta
-    query_combined_normalized = normalize_embedding(query_combined)
-    return query_combined_normalized
-
-
-# Función para buscar y mostrar resultados
-def search(query, top_k=5, threshold=0.1, normalize=True):
-    query_embedding = prepare_query_embedding(query, normalize_query=normalize)
-    scores, indices = index.search(np.array([query_embedding]), top_k)
-    results = []
-    for score, idx in zip(scores[0], indices[0]):
-        if idx == -1:
-            continue
-        result = data[idx]  # Usamos el diccionario original para más detalles
-        cosine_similarity = score  # Ahora es similitud coseno
-        if cosine_similarity >= threshold:
-            results.append(
-                {
-                    "NombreCompleto": result["NombreCompleto"],
-                    "Identificacion": result["Identificacion"],
-                    "cosine_similarity": f"{cosine_similarity:.4f}",
-                }
-            )
-    return pd.DataFrame(results)
+            results = []
+            for score, idx in zip(scores[0], indices[0]):
+                if idx == -1:
+                    continue
+                result = data[idx]
+                if score >= threshold:
+                    results.append(
+                        {
+                            "NombreCompleto": result["NombreCompleto"],
+                            "Identificacion": result["Identificacion"],
+                            "cosine_similarity": f"{score:.4f}",
+                            "type": "name",
+                            "index": idx,  # Añadimos el índice explícitamente
+                        }
+                    )
+            return pd.DataFrame(results[:top_k])
 
 
 # Pruebas con las queries del usuario
@@ -940,9 +1050,11 @@ if __name__ == "__main__":
         "pedro",
         "8686",
         "juan crlos",
+        "juan carlos",
+        "torres 36300",
         "diego fernando andrade torre",
     ]
     for query in test_queries:
-        df = search(query, top_k=5, threshold=0.1, normalize=True)
+        df = search(query, top_k=5, threshold=0.5)
         print(f"\nQuery: {query}")
         print(df)
