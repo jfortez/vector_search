@@ -440,7 +440,7 @@ class SearchProcessor:
             self.format,
             model_type,
             index_type,
-            str(embedding_manager.embeddings.shape),
+            str(embedding_manager.name_embeddings.shape),
         )
 
         logging.info(f"Resultados escritos en {path}.{self.format}")

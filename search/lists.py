@@ -310,8 +310,8 @@ class EmbeddingManager:
     def __init__(
         self,
         embeddings_dir: str = "embeddings",
-        model_type: EmbeddingModelType = EmbeddingModelType.MULTI_QA_MPNET,
-        index_type: FaissIndexType = FaissIndexType.FLAT_IP,
+        model_type: EmbeddingModelType = EmbeddingModelType.MINI_LM,
+        index_type: FaissIndexType = FaissIndexType.FLAT_L2,
         print_times: bool = False,
         limit_data: Optional[int] = None,
     ):
@@ -582,8 +582,8 @@ class EmbeddingManager:
 # Pruebas con las queries del usuario
 if __name__ == "__main__":
     em = EmbeddingManager(
-        model_type=EmbeddingModelType.MULTI_QA_MPNET,  # Usando multi-qa-mpnet-base-dot-v1
-        index_type=FaissIndexType.FLAT_IP,
+        model_type=EmbeddingModelType.PARAPHRASE,
+        index_type=FaissIndexType.FLAT_L2,
         print_times=True,
     )
     inputs = [
