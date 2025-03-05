@@ -49,7 +49,7 @@ class CLIConfig:
             "--models",
             nargs="+",
             choices=[e.name for e in EmbeddingModelType],
-            required=False,  # No es obligatorio si existe config.json
+            required=False,
             help="Modelos de embeddings a usar (e.g., MINI_LM PARAPHRASE). Debe ser el primer argumento si se usa desde la CLI.",
         )
 
@@ -92,6 +92,11 @@ class CLIConfig:
             choices=["txt", "json", "csv"],
             default=None,
             help="Formato de salida (default: txt si se usa config.json). Opcional.",
+        )
+        group_dependent.add_argument(
+            "--filePrefix",
+            default=None,
+            help="Prefijo opcional para el nombre del archivo de salida (e.g., 'test' genera [test]_output_[faiss_type].[format]).",
         )
 
         # Argumentos independientes (opcionales en cualquier momento)
@@ -147,6 +152,10 @@ class CLIConfig:
         # Aplicar valores por defecto desde DEFAULTS
         for key, value in DEFAULTS.items():
             setattr(args, key, getattr(args, key) or value)
+
+        # Agregar filePrefix a los defaults si no está presente
+        if not hasattr(args, "filePrefix"):
+            setattr(args, "filePrefix", None)
 
         # Validar que la longitud de inputs no sea 0
         inputs = load_inputs(args.inputs)
@@ -247,12 +256,17 @@ class OutputFormatter:
     """Clase para formatear y escribir resultados en diferentes formatos."""
 
     @staticmethod
-    def generate_block(query, results, threshold, k, format):
+    def generate_block(query, results, threshold, k, format, query_time=None):
         """Genera un bloque de datos para el formato especificado, reduciendo repetición."""
         if format == "txt":
             block_lines = [
                 f"- INPUT: [{query}]",
                 f"- ARGS: (threshold={threshold}, k={k})",
+                (
+                    f"- ESTIMATED: {query_time:.2f} seconds"
+                    if query_time is not None
+                    else "- ESTIMATED: N/A"
+                ),
             ]
             if results.empty:
                 block_lines.extend(
@@ -273,12 +287,14 @@ class OutputFormatter:
                     "input": query,
                     "k": k,
                     "threshold": threshold,
+                    "query_time": query_time if query_time is not None else "N/A",
                     "results": "No se encontraron resultados relevantes",
                 }
             return {
                 "input": query,
                 "k": k,
                 "threshold": threshold,
+                "query_time": query_time if query_time is not None else "N/A",
                 "results": results.to_dict("records"),
             }
         elif format == "csv":
@@ -288,33 +304,53 @@ class OutputFormatter:
                         "input": [query],
                         "k": [k],
                         "threshold": [threshold],
+                        "query_time": [query_time if query_time is not None else "N/A"],
                         "results": ["No se encontraron resultados relevantes"],
                     }
-                ), ["input", "k", "threshold", "results"]
+                ), ["input", "k", "threshold", "query_time", "results"]
             result_df = pd.DataFrame(results.to_dict("records"))
             result_df["input"] = query
             result_df["k"] = k
             result_df["threshold"] = threshold
-            columns = ["input", "k", "threshold"] + [
+            result_df["query_time"] = query_time if query_time is not None else "N/A"
+            columns = ["input", "k", "threshold", "query_time"] + [
                 col
                 for col in result_df.columns
-                if col not in ["input", "k", "threshold"]
+                if col not in ["input", "k", "threshold", "query_time"]
             ]
             return result_df[columns], columns
 
     @staticmethod
     def write_output(
-        path, blocks, output_format, model_type, index_type, embeddings_shape
+        path,
+        blocks,
+        output_format,
+        model_type,
+        index_type,
+        embeddings_shape,
+        total_time=None,
+        avg_time=None,
+        filePrefix=None,
     ):
         """Escribe los resultados en el formato especificado con sufijo adecuado."""
+        # Ajustar el nombre del archivo con el prefijo si existe
+        file_name = f"output_{index_type.value}"
+        if filePrefix:
+            file_name = f"{filePrefix}_{file_name}"
+        path = (
+            path.parent / file_name
+        )  # Reemplazamos el nombre base con el prefijo si aplica
+
         if output_format == "txt":
             path = path.with_suffix(".txt")
             max_width = max(len(line) for block in blocks for line in block)
             separator = "-" * max_width
             with open(path, "w", encoding="utf-8") as f:
                 f.write(
-                    f"MODEL NAME: {model_type.value} | FAISS Index Model: {index_type.value} | Shape: {embeddings_shape}\n\n"
+                    f"MODEL NAME: {model_type.value} | FAISS Index Model: {index_type.value} | Shape: {embeddings_shape}\n"
                 )
+                f.write(f"ESTIMATED TIME: {total_time:.2f} seconds\n")
+                f.write(f"AVERAGE: {avg_time:.2f} seconds per query\n\n")
                 for i, block in enumerate(blocks):
                     for line in block:
                         f.write(f"{line}\n")
@@ -328,6 +364,8 @@ class OutputFormatter:
                         "model_name": model_type.value,
                         "index_type": index_type.value,
                         "shape": embeddings_shape,
+                        "total_time": total_time,
+                        "average_time_per_query": avg_time,
                         "results": blocks,
                     },
                     f,
@@ -368,6 +406,7 @@ class SearchProcessor:
         self.threshold = args.threshold or DEFAULTS["threshold"]
         self.k = args.k or DEFAULTS["k"]
         self.format = args.format or DEFAULTS["format"]
+        self.filePrefix = args.filePrefix  # Nuevo atributo
         self.formatter = OutputFormatter()
 
     def process_search(self):
@@ -387,7 +426,7 @@ class SearchProcessor:
         path = (
             self.output_dir
             / embedding_manager.model_name
-            / f"output_{index_type.value}"
+            / f"output_{index_type.value}"  # Base del nombre, se ajustará en write_output
         )
         path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -396,11 +435,18 @@ class SearchProcessor:
             self.inputs, desc=f"Búsqueda {model_type.name}-{index_type.name}"
         ):
             try:
+                query_start_time = time.time()
                 results = embedding_manager.search(
                     query, threshold=self.threshold, k=self.k, type=SearchType.COSINE
                 )
+                query_time = time.time() - query_start_time
                 block = self.formatter.generate_block(
-                    query, results, self.threshold, self.k, self.format
+                    query,
+                    results,
+                    self.threshold,
+                    self.k,
+                    self.format,
+                    query_time=query_time,
                 )
                 if self.format == "csv" and isinstance(block, tuple):
                     blocks.append(block)
@@ -434,6 +480,9 @@ class SearchProcessor:
                         )
                     )
 
+        total_time = time.time() - start_time
+        avg_time = total_time / len(self.inputs) if self.inputs else 0
+
         self.formatter.write_output(
             path,
             blocks,
@@ -441,10 +490,13 @@ class SearchProcessor:
             model_type,
             index_type,
             str(embedding_manager.name_embeddings.shape),
+            total_time=total_time,
+            avg_time=avg_time,
+            filePrefix=self.filePrefix,  # Pasamos el prefijo
         )
 
         logging.info(f"Resultados escritos en {path}.{self.format}")
-        logging.info(f"Tiempo de ejecución: {time.time() - start_time:.2f} segundos")
+        logging.info(f"Tiempo de ejecución: {total_time:.2f} segundos")
 
 
 def load_inputs(inputs_arg):
@@ -483,9 +535,12 @@ def main():
     """Punto de entrada principal para ejecutar el script."""
     config = CLIConfig()
     args = config.parse_args()
+    start_time = time.time()
 
     processor = SearchProcessor(args)
     processor.process_search()
+
+    print(f"Total time: {time.time() - start_time:.2f} seconds")
 
 
 if __name__ == "__main__":

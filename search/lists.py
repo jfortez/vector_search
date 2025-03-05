@@ -109,7 +109,9 @@ class EmbeddingGenerator:
         print_times: bool = False,
         field: str = "NombreCompleto",
     ):
-        self.model = SentenceTransformer(model_type.value)
+        self.model = SentenceTransformer(
+            model_type.value,
+        )
         self.dimension = self.model.get_sentence_embedding_dimension()
         self.data = data
         self.embeddings_file = embeddings_dir / f"{field}_embeddings.npy"
@@ -582,8 +584,8 @@ class EmbeddingManager:
 # Pruebas con las queries del usuario
 if __name__ == "__main__":
     em = EmbeddingManager(
-        model_type=EmbeddingModelType.PARAPHRASE,
-        index_type=FaissIndexType.FLAT_L2,
+        model_type=EmbeddingModelType.MULTI_QA_MPNET,
+        index_type=FaissIndexType.FLAT_IP,
         print_times=True,
     )
     inputs = [

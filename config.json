@@ -1,8 +1,10 @@
 {
-  "models": ["MINI_LM", "MULTI_QA", "PARAPHRASE"],
-  "indexes": ["FLAT_L2", "FLAT_IP", "HNSWFLAT"],
-  "inputs": ["input.txt"],
-  "threshold": 0.1,
-  "k": 10,
+  "models": ["MULTI_QA"],
+  "indexes": ["FLAT_IP"],
+  "inputs": ["Inputs-10k.txt"],
+  "output": "Inputs-10k",
+  "filePrefix": "10k",
+  "threshold": 0.7,
+  "k": 5,
   "verbose": true
 }
