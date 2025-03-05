@@ -25,6 +25,7 @@ DEFAULTS = {
     "format": "txt",
     "log": None,
     "verbose": False,
+    "filePrefix": None,
 }
 
 
@@ -340,7 +341,6 @@ class OutputFormatter:
         path = (
             path.parent / file_name
         )  # Reemplazamos el nombre base con el prefijo si aplica
-
         if output_format == "txt":
             path = path.with_suffix(".txt")
             max_width = max(len(line) for block in blocks for line in block)
@@ -406,7 +406,7 @@ class SearchProcessor:
         self.threshold = args.threshold or DEFAULTS["threshold"]
         self.k = args.k or DEFAULTS["k"]
         self.format = args.format or DEFAULTS["format"]
-        self.filePrefix = args.filePrefix  # Nuevo atributo
+        self.filePrefix = args.filePrefix
         self.formatter = OutputFormatter()
 
     def process_search(self):

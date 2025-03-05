@@ -1,9 +1,9 @@
 {
   "models": ["MULTI_QA"],
   "indexes": ["FLAT_IP"],
-  "inputs": ["Inputs-10k.txt"],
-  "output": "Inputs-10k",
-  "filePrefix": "10k",
+  "inputs": ["Inputs-50k.txt"],
+  "output": "Inputs-50k",
+  "filePrefix": "50k",
   "threshold": 0.7,
   "k": 5,
   "verbose": true
